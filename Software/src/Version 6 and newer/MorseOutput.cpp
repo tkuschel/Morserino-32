@@ -1399,6 +1399,9 @@ void MorseOutput::dispM32Logo() {
   display.setColor(BLACK);
   display.drawXbm(1, 30, M32c_width, M32c_height, M32c_bits);
   display.setColor(WHITE);
+  display.setFont(DialogInput_bold_12);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.drawString(20,1,"OE3TKT Edition");
   display.display();
 }
 #endif

@@ -714,7 +714,7 @@ void displayStartUp(uint16_t volt) {
   MorseOutput::clearDisplay();
   #ifdef CONFIG_DISPLAYWRAPPER
   MorseOutput::dispM32Logo();
-  delay(1800);
+  delay(4800); // was 1800, show it a little bit longer
   MorseOutput::clearDisplay();
   #endif
 
