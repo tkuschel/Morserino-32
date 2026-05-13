@@ -47,11 +47,11 @@ What is new in Version 8?
 
 | # | Connector / Control | Usage |
 |:---:|---|---|
-| 1 | USB-C | Use a normal 5V USB Charger to power the device and charge its LiPo Battery. The microcontroller firmware can also be reprogrammed through USB; another method to update the Morserino-32 firmware is through a WiFi connection. You can also output keyed or decoded characters on the USB serial device to use this information in a computer program – see the preference **Serial Output** for further information. |
+| 1 | USB-C | Use a normal 5V USB Charger to power the device and charge its LiIon Battery. The microcontroller firmware can also be reprogrammed through USB; another method to update the Morserino-32 firmware is through a WiFi connection. You can also output keyed or decoded characters on the USB serial device to use this information in a computer program – see the preference **Serial Output** for further information. |
 | 2 | 3.5 mm Phone Jack (3 poles): External Paddle | Use this to connect either an external (mechanical) paddle (tip is left paddle, ring is right paddle, sleeve is ground), or a straight key (tip is the key). |
 | 3 | 3.5mm Phone Jack (3 poles): to TX | Connect this to your transmitter or transceiver if you would like to key them with this device. Only the tip and sleeve are being used. |
 | 4 | 3.5mm Phone Jack (4 poles): Headphones / Audio In / Line Out | Connect your headphones (with 3-pol or 4-pole plug) here. Audio input for the CW decoder; connect the audio output of a receiver for decoding CW signals. Audio output (for external amplifiers or PC etc.). The assignments to the jack are as follows: Tip and 1st ring – audio or headphones out; 2nd ring: ground; sleeve: audio in. See also section **6.2.1 General Preferences** for available settings regarding this connector! **Do not connect this to a transceiver with a simple 3- or 4-pole audio cable - high voltages form the audio output of the transceiver might destroy your M32Pocket! See FAQ on morserino.info how to feed audio into the M32Pocket!**|
-| 5 | Power Switch | Connect / disconnect the LiPo battery from the device. For frequent use of the Morserino-32 you can leave the battery connected. The ON position is towards the touch paddles, and marked with a small notch on the case. If you will not use the device for several days, disconnect the battery (through the Power Switch), as otherwise it will be slowly discharged. <br> For charging, the battery needs to be connected, i.e. the switch must be in the ON position! |
+| 5 | Power Switch | Connect / disconnect the LiIon battery from the device. For frequent use of the Morserino-32 you can leave the battery connected. The ON position is towards the touch paddles, and marked with a small notch on the case. If you will not use the device for several days, disconnect the battery (through the Power Switch), as otherwise it will be slowly discharged. <br> For charging, the battery needs to be connected, i.e. the switch must be in the ON position! |
 | 6 | ENCODER – Encoder and its Pushbutton switch | Can be rotated and is also a push-button switch. Used to make your selection within menus, to adjust speed, volume, or scroll the display, and to set various preferences and options. |
 | 7 | Touch paddles | These are capacitive touch paddles. Please note that for left-handed use, the display can be flipped 180°! |
 | 8 | FN Button switch (integrated into the case) | When the device has gone into deep sleep, this wakes up and restarts your Morserino. When the device is up and running (performing one of the operation modes), a short press of the FN button toggles the rotary encoder between adjusting the keyer speed and volume control. A long press of the FN button allows you to scroll the display with the rotary encoder, pressing the button again changes the function back to speed control.  See the section **4.2 Using the ENCODER Knob and FN Button** for further details.  <br> A double click of this button reduces display brightness in several steps. |
@@ -1816,8 +1816,8 @@ When you successfully complete the game, a victory screen shows your total step 
 
 Apart from the functionality of WiFi Transceiver, you can use the WiFi
 feature of the ESP32 processor used in the Morserino-32 for two
-important functions of the device, when you are using WiFi through an
-access point:
+functions of the device, when you are using WiFi through an
+access point, that were of high importance in teh past:
 
 -   Uploading a text file to the Morserino-32 that can then be played in
     CW Generator mode or Echo Trainer mode.
@@ -1829,6 +1829,10 @@ file or the compiled binary file for the software update) must be on
 your computer (even a tablet or smartphone will work, as you only need
 basic web-browser functionality on that device), and your Morserino must
 be connected to the same WiFi network as your computer.
+
+::: note
+Both these functions can now be accomplished much easier by connecting your Morserino to a computer that runs Chrome, Edge or Opera - see appendices 6 and 7 of this manual!
+:::
 
 In order to connect your Morserino-32 to your local WiFi network, you
 usually need to know the SSID (the "name") of the network, and the
