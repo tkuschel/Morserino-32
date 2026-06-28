@@ -46,4 +46,4 @@ jobs:
           path: |
             Software/src/.pio/build/pocketwroom/firmware.bin
             Software/src/.pio/build/pocketwroom/firmware.elf
-          retension-days: 90
+          retention-days: 90
