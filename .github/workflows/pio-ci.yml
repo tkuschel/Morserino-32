@@ -7,16 +7,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO and Pip
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
-          key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platform.ini') }}
+          # Fallback to the latest available cache if platformio.ini was modified
+          restore-keys: |
+            ${{ runner.os }}-pio-
+            
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
@@ -26,4 +35,15 @@ jobs:
         # breaks `extra_scripts` paths that reference files in the real
         # project tree (the script isn't copied). `pio run` builds in
         # place and matches what developers run locally.
-        run: pio run -d Software/src -e heltec_wifi_lora_32_V2
+        # run: pio run -d Software/src -e heltec_wifi_lora_32_V2
+        # Changed the execution target (-e) from the Heltec board to pocketwroom
+        run: pio run -d Software/src -e pocketwroom
+
+      - name: Upload Firmware Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-pocketwroom
+          path: |
+            Software/src/.pio/build/pocketwroom/firmware.bin
+            Software/src/.pio/build/pocketwroom/firmware.elf
+          retension-days: 90
