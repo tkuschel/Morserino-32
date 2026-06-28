@@ -17,6 +17,7 @@
 #include "MorsePreferences.h"
 #include "MorseBluetooth.h"
 #include "MorseJSON.h"
+#include "MorseTextEntry.h"
 #include "abbrev.h"
 #include "english_words.h"
 #include "ClickButton.h"   // button control library
@@ -50,7 +51,7 @@ enum prefPos : uint8_t
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
   posBluetoothOut,
 #endif
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   posTheme, 
 #endif
   posSerialOut, 
@@ -73,13 +74,16 @@ const char * prefName[] = {
                       "KochSeq", "carouselStart", "latency", "randomFile", "extAudioOnDecod", "timeOut",
                       "quickStart", "outputCase", "autoStop", "maxSequence", "LoraChannel",
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-					  "bluetoothOut",
+					  "bluetoothOut", "btARkey",
 #endif
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
             "theme",
 #endif
 #ifdef CONFIG_CW_GAME
             "invaderOrient",
+#endif
+#ifdef CONFIG_QSO_BOT
+            "qsoBotContestType",
 #endif
             "serialOut"
 					};
@@ -202,11 +206,11 @@ parameter MorsePreferences::pliste[] = {
     {"Unlimited", "3", "4", "5", "6"}
   },
   {
-    0, 0, 6, 1,                                                 // Generators: continent for generated call signs   0 = all, 1-6 = specific continents
+    0, 0, 7, 1,                                                 // Generators: continent for generated call signs   0 = all, 1-6 = specific continents, 7 = VK/ZL only
     "Calls Region",
     "Continent(s) for generated call signs",
     true,
-    {"All", "Europe", "N America", "S America", "Africa", "Asia", "Oceania" }
+    {"All", "Europe", "N America", "S America", "Africa", "Asia", "Oceania", "VK/ZL" }
   },
   {
     1, 0, 1, 1,                                                 // Generators: only generate common call signs?   0 = no, 1 = yes
@@ -396,8 +400,15 @@ parameter MorsePreferences::pliste[] = {
     true,
     {"Nothing", "Vband Keying", "Decoded", "Vband+Decoded", "Generic Kbd"}
   },
+  {
+    0, 0, 1, 1,                                                 // in Generic Kbd mode: 0=send '+', 1=send Shift+Enter (soft return)
+    "BLT <AR>",
+    "Generic Kbd: send <AR> as '+' or as Linefeed (Shift+Enter)",
+    true,
+    {"+", "Linefeed"}
+  },
 #endif
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   {
     0, 0, 8, 1,
     "Theme",
@@ -405,7 +416,7 @@ parameter MorsePreferences::pliste[] = {
     true,
     {"Plain", "Blues", "ePaper", "Mandarin", "Darkroom", "Veggie", "Garnet", "Lemonade", "Complements"}
   },
-#endif   // CONFIG_DISPLAYWRAPPER (closes the Theme entry)
+#endif   // CONFIG_TFT (closes the Theme entry)
 #ifdef CONFIG_CW_GAME
   {
     0, 0, 1, 1,
@@ -413,6 +424,15 @@ parameter MorsePreferences::pliste[] = {
     "Invader character orientation",
     true,
     {"Portrait", "Landscape"}
+  },
+#endif
+#ifdef CONFIG_QSO_BOT
+  {
+    0, 0, 1, 1,                                                 // Contest type: 0=CQ WW, 1=WPX/Sprint
+    "Contest Type",
+    "Which contest exchange the bot uses when Contest is selected",
+    true,
+    {"CQ WW", "WPX/Sprint"}
   },
 #endif
   {
@@ -424,20 +444,21 @@ parameter MorsePreferences::pliste[] = {
   }
 };
 
-const char* const extraItems[] = {"Koch Lesson", "LoRa Band",  "LoRa Frequ", "LoRa Power", "RECALLSnapshot", "STORE Snapshot", "Calibrate Batt", "Hardware Conf" };
+const char* const extraItems[] = {"Koch Lesson", "LoRa Band",  "LoRa Frequ", "LoRa Power", "RECALLSnapshot", "STORE Snapshot", "Calibrate Batt", "Hardware Conf", "Call Sign", "Op Name", "Reset Scores" };
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 themes MorsePreferences::themeList[] = {
-  {0, 0},                     // 0: Plain - a special case, we turn themes off
-  {0xFFFF, 0x09f3},                     // 1: Blues
-  {0x3a08, 0xc616},                     // 2: ePaper
-  {0x18c2, 0xfd2a},                     // 3: Mandarin
-  {0xd1a4, 0x0000},                      // 4: Darkroom
-  {0x1eef, 0x10e2},                     // 5: Veggie
-  {0xf79d, 0xa0c3},                     // 6: Garnet
-  {0x4a42, 0xff74},                     // 7: Lemonade
-  {0xf3e5, 0x01b0}                      // 8: Complements
- 
+  //  foreground  background  morse   ok      err     (M6 palette — tune on device)
+  {0,      0,      0x073F, 0x3ECA, 0xFAC9},     // 0: Plain — cyan / green / red
+  {0xFFFF, 0x09f3, 0xFEA0, 0x5F11, 0xFBCD},     // 1: Blues — gold / green / coral
+  {0x3a08, 0xc616, 0x9963, 0x1BE7, 0xB943},     // 2: ePaper — ink red / deep green / deep red
+  {0x18c2, 0xfd2a, 0x114C, 0x1325, 0xB0E3},     // 3: Mandarin — navy / dark green / dark red
+  {0xd1a4, 0x0000, 0xFD80, 0x370E, 0xFA88},     // 4: Darkroom — amber / green / bright red
+  {0x1eef, 0x10e2, 0x5F58, 0xAF08, 0xFAA8},     // 5: Veggie — turquoise / lime / red
+  {0xf79d, 0xa0c3, 0xFE66, 0x6F53, 0xFC4C},     // 6: Garnet — gold / light green / coral
+  {0x4a42, 0xff74, 0x034B, 0x14A8, 0xC163},     // 7: Lemonade — dark teal / green / deep red
+  {0xf3e5, 0x01b0, 0x4E9C, 0x5F11, 0xFAED}      // 8: Complements — cyan / green / pink-red
+
 };
 #endif
 
@@ -532,7 +553,7 @@ FilePart MorsePreferences::fileParts[MAX_FILE_PARTS];
 #else
 #define LINEOUT
 #endif
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 #define THEME posTheme,
 #else
 #define THEME 
@@ -543,9 +564,14 @@ FilePart MorsePreferences::fileParts[MAX_FILE_PARTS];
 #define INVORIENT
 #endif
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-#define BLUE posBluetoothOut,
+#define BLUE posBluetoothOut, posBluetoothARkey,
 #else
 #define BLUE
+#endif
+#ifdef CONFIG_QSO_BOT
+#define QSOBOT posQsoBotContestType,
+#else
+#define QSOBOT
 #endif
 
 
@@ -612,20 +638,39 @@ FilePart MorsePreferences::fileParts[MAX_FILE_PARTS];
                                                    posGoertzelBandwidth, posExtAudioOnDecode
                                                  };
 
+#ifdef CONFIG_QSO_BOT
+ prefPos MorsePreferences::qsoBotOptions[] =     { PREFPOS_COMMON_CORE  LINEOUT  THEME BLUE posSerialOut, posPolarity, posExtPddlPolarity,
+
+                                                   posCurtisMode, posCurtisBDahTiming, posCurtisBDotTiming, posACS, posInterWordSpace, posLatency, posEchoToneShift,
+                                                   posGoertzelBandwidth,
+                                                   posQsoBotContestType
+                                                 };
+#endif
+
  prefPos MorsePreferences::decoderOptions[] =    {PREFPOS_COMMON_CORE  LINEOUT THEME BLUE posSerialOut, posPolarity, posExtPddlPolarity,
 
                                                    posInterWordSpace, posGoertzelBandwidth, posExtAudioOnDecode
                                                  };
 
- prefPos MorsePreferences::allOptions[] =        { PREFPOS_COMMON_CORE LINEOUT THEME INVORIENT BLUE posSerialOut, posPolarity, posExtPddlPolarity,
+ // The order here is the order the user sees in the "All" preferences view
+ // (i.e. when entering preferences from the start menu). Grouped per the
+ // user manual's section structure: General -> Key/Paddles/Keyer -> Koch
+ // sequence -> CW Generation -> Echo Trainer -> Transmitting/Decoding/QSO
+ // Bot. The conditionally-compiled features (LINEOUT, THEME, INVORIENT,
+ // BLUE, QSOBOT) are macro-expanded into their groups so the order stays
+ // stable across build configurations.
+ prefPos MorsePreferences::allOptions[] =        { PREFPOS_COMMON_CORE LINEOUT THEME INVORIENT posSerialOut, posPolarity, posExtPddlPolarity,
 
-                                                   posCurtisMode, posCurtisBDahTiming, posCurtisBDotTiming, posACS,  posLatency, posKochSeq, posCarouselStart,
+                                                   posCurtisMode, posCurtisBDahTiming, posCurtisBDotTiming, posACS,  posLatency, BLUE
+                                                   posKochSeq, posCarouselStart,
                                                    posInterCharSpace, posInterWordSpace, posRandomOption, posRandomLength, posCallLength, posCallContinent, posCallCommon, posAbbrevLength,  posWordLength,
                                                    posMaxSequence, posAutoStop, posGeneratorDisplay, posRandomFile, posWordDoubler,
                                                    posEchoRepeats, posEchoDisplay, posEchoConf, posEchoToneShift, posSpeedAdapt, posEchoSpeedMax,
                                                    posKeyExternalTx, posLoraCwTransmit,
                                                    posLoraChannel,
-                                                   posGoertzelBandwidth, posExtAudioOnDecode
+                                                   posGoertzelBandwidth, posExtAudioOnDecode,
+                                                   QSOBOT
+                                                   posPlayerCall, posPlayerName, posResetScores,
                                                  };
 
 prefPos *MorsePreferences::currentOptions = MorsePreferences::allOptions;
@@ -640,6 +685,9 @@ int MorsePreferences::kochEchoOptionsSize = SizeOfArray(MorsePreferences::kochEc
 int MorsePreferences::loraTrxOptionsSize = SizeOfArray(MorsePreferences::loraTrxOptions);
 int MorsePreferences::wifiTrxOptionsSize = SizeOfArray(MorsePreferences::wifiTrxOptions);
 int MorsePreferences::extTrxOptionsSize = SizeOfArray(MorsePreferences::extTrxOptions);
+#ifdef CONFIG_QSO_BOT
+int MorsePreferences::qsoBotOptionsSize = SizeOfArray(MorsePreferences::qsoBotOptions);
+#endif
 int MorsePreferences::decoderOptionsSize = SizeOfArray(MorsePreferences::decoderOptions);
 int MorsePreferences::allOptionsSize = SizeOfArray(MorsePreferences::allOptions);
 
@@ -778,8 +826,10 @@ void MorsePreferences::displayKeyerPreferencesMenu(prefPos pos) {
     topLine = "Manage Snapshots:";
   else if (pos < posHwConf)
     topLine = "Calibrate Voltage";
-  else
+  else if (pos == posHwConf)
     topLine = "Hardware Config.";
+  else
+    topLine = "Player & Scores:";
 
   topLine += emptyLine.substring(0,topMax - topLine.length());
   MorseOutput::clearStatusLine();
@@ -873,6 +923,17 @@ String MorsePreferences::getValueLine(prefPos pos) {
   const char* const milliWatt[] = {"10", "12.5", "16", "20", "25", "32", "40", "50", "63", "80", "100"};
 
   switch (pos) {
+    case posPlayerCall:
+    case posPlayerName: {
+        Preferences pp; pp.begin("morserino", true);
+        str = pp.getString(pos == posPlayerCall ? "playerCall" : "playerName", "");
+        pp.end();
+        if (str.length() == 0) str = "(not set)";
+        break;
+    }
+    case posResetScores:
+        str = "clear all";
+        break;
     case posKochFilter:
       str = koch.getNewChar();
       cleanUpProSigns(str);
@@ -1022,8 +1083,77 @@ boolean MorsePreferences::confirmDelete(uint8_t ptr)  {
 }
 //// function to adjust the selected preference
 
+// --- Phase E: player identity entry + game-score reset (preferences actions) ---
+static const uint8_t IDENT_MAX_LEN = 8;   // matches FTP_MAX_IDENT_LEN (player call/name)
+
+void MorsePreferences::editPlayerIdentity(prefPos pos) {
+    const bool  isCall = (pos == posPlayerCall);
+    const char *key    = isCall ? "playerCall" : "playerName";
+    Preferences p;
+    p.begin("morserino", true);
+    String cur = p.getString(key, "");
+    p.end();
+    char buf[IDENT_MAX_LEN + 1];
+    MorseTextEntry::enterText(isCall ? "Call Sign:" : "Op Name:", buf, IDENT_MAX_LEN,
+                              isCall ? MorseTextEntry::CHARSET_CALLSIGN
+                                     : MorseTextEntry::CHARSET_NAME,
+                              cur.c_str());
+    p.begin("morserino", false);
+    p.putString(key, buf);
+    p.end();
+    Buttons::modeButton.clicks = 0;   // swallow the long-press that ended entry
+    Buttons::volButton.clicks  = 0;
+}
+
+void MorsePreferences::resetGameScores() {
+    MorseOutput::clearScrollLines();
+    MorseOutput::printOnScroll(0, BOLD,    0, "Clear scores?");
+    MorseOutput::printOnScroll(1, REGULAR, 0, "FN = yes");
+    MorseOutput::printOnScroll(2, REGULAR, 0, "click = no");
+    MorseOutput::refreshDisplay();
+    Buttons::modeButton.clicks = 0;
+    Buttons::volButton.clicks  = 0;
+    boolean confirmed = false;
+    while (true) {
+        Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) break;                       // encoder click = cancel
+        Buttons::volButton.Update();
+        if (Buttons::volButton.clicks != 0) { confirmed = true; break; }  // FN = confirm
+        checkShutDown(false);
+        serialEvent();
+        delay(20);
+    }
+    Buttons::modeButton.clicks = 0;
+    Buttons::volButton.clicks  = 0;
+    if (!confirmed) return;
+    Preferences p;
+    p.begin("m32game",   false); p.clear();                      p.end();   // Invaders high-score table
+    p.begin("morsel",    false); p.remove("hi"); p.remove("hv"); p.end();   // Morsel scores (keep wlen)
+    p.begin("radiocave", false); p.remove("save");               p.end();   // Radio Cave save/progress
+    MorseOutput::clearScrollLines();
+    MorseOutput::printOnScroll(1, BOLD, 0, "Scores cleared");
+    MorseOutput::refreshDisplay();
+    delay(1200);
+}
+
 boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotating the encoder changes the value, click returns to preferences menu
                                                                       /// returns true when a long button press ended it, and false when there was a short click
+    // Phase E action items are not encoder-adjusted: run the action, then repaint
+    // the item so the result shows at once. setupPreferences does NOT repaint
+    // after a click that returns false (it only repaints on encoder navigation),
+    // so without this the editor screen would linger and the user would have to
+    // long-press again — which setupPreferences then reads as "exit preferences".
+    if (pos == posPlayerCall || pos == posPlayerName) {
+        editPlayerIdentity(pos);
+        displayKeyerPreferencesMenu(pos);
+        return false;
+    }
+    if (pos == posResetScores) {
+        resetGameScores();
+        displayKeyerPreferencesMenu(pos);
+        return false;
+    }
+
     MorseOutput::printOnScroll(2, INVERSE_BOLD, 0, ">");
     uint8_t seq;
     int8_t t;
@@ -1080,7 +1210,7 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
                   if (mini == 0) {
                       temp = val + maxi + vstep + t*vstep;
                       pliste[pos].value = temp % (maxi + vstep);
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
                       if (pos == posTheme) {
                            MorseOutput::setTheme(MorsePreferences::pliste[posTheme].value); 
                             MorseOutput::refreshDisplay();
@@ -1402,7 +1532,7 @@ void MorsePreferences::writePreferences(const char* repository) {
          pref.remove("wlanChoice");
          pref.putUChar("wlanChoice", MorsePreferences::wlanChoice);
      }
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
       if (MorsePreferences::pliste[posTheme].value != pref.getUChar("theme")) {
           pref.putUChar("theme", MorsePreferences::pliste[posTheme].value); // store the theme
           MorseOutput::setTheme(MorsePreferences::pliste[posTheme].value);  // set the theme
@@ -1929,12 +2059,13 @@ void MorsePreferences::scanFileParts() {
                     fileParts[partCount - 1].endOffset = lineStart;
                 }
                 
-                // Record this part
+                // Record this part. Preserve wordPointer — that is playback
+                // state (loaded from NVS at boot, updated during play), not
+                // file structure. The upload path resets it explicitly.
                 FilePart& part = fileParts[partCount];
                 // startOffset = position AFTER the separator line
                 part.startOffset = f.position();   // current position is right after this line
                 part.endOffset = fileSize;          // will be updated when next separator is found
-                part.wordPointer = 0;
                 
                 // Copy chapter name
                 int nameLen = lineLen - pos;

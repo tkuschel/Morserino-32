@@ -28,13 +28,13 @@
 <div class="title-page">
 <div class="title-blue-band"><h1>Morserino-32</h1></div>
 <div class="title-grey-band"><p>User Manual</p></div>
-<div class="title-version">Version 8.x<br>May 2026</div>
+<div class="title-version">Version 8.x<br>June 2026</div>
 <div class="title-logo"><img src="images/m32_logo.png" alt="M32 Logo"></div>
 </div>
 
 <div class="edition-page">
 <p><strong>M32 — User Manual</strong></p>
-<p>Edition V 8.x, May, 2026</p>
+<p>Edition V 8.x, June, 2026</p>
 <p>© Copyright 2016-2026 by Willi Kraml, OE1WKL</p>
 <p>This work is licensed under a CC BY 4.0 license. To view a copy of this
 license, visit <a href="http://creativecommons.org/licenses/by/4.0/">http://creativecommons.org/licenses/by/4.0/</a></p>
@@ -84,6 +84,7 @@ The font family used is Lato.</p>
 <li><a href="#lora-trx" id="toc-lora-trx"><span class="toc-section-number">5.5.1</span> LoRa Trx</a></li>
 <li><a href="#wifi-trx" id="toc-wifi-trx"><span class="toc-section-number">5.5.2</span> Wifi Trx</a></li>
 <li><a href="#icwext-trx" id="toc-icwext-trx"><span class="toc-section-number">5.5.3</span> iCW/Ext Trx</a></li>
+<li><a href="#qso-bot" id="toc-qso-bot"><span class="toc-section-number">5.5.4</span> QSO Bot</a></li>
 </ul></li>
 <li><a href="#cw-decoder" id="toc-cw-decoder"><span class="toc-section-number">5.6</span> CW Decoder</a></li>
 <li><a href="#games" id="toc-games"><span class="toc-section-number">5.7</span> Games</a>
@@ -91,6 +92,7 @@ The font family used is Lato.</p>
 <li><a href="#morse-invaders" id="toc-morse-invaders"><span class="toc-section-number">5.7.1</span> Morse Invaders</a></li>
 <li><a href="#fight-the-pileup" id="toc-fight-the-pileup"><span class="toc-section-number">5.7.2</span> Fight the Pileup</a></li>
 <li><a href="#radio-cave" id="toc-radio-cave"><span class="toc-section-number">5.7.3</span> Radio Cave</a></li>
+<li><a href="#morsel" id="toc-morsel"><span class="toc-section-number">5.7.4</span> Morsel</a></li>
 </ul></li>
 <li><a href="#wifi-functions" id="toc-wifi-functions"><span class="toc-section-number">5.8</span> WiFi Functions</a>
 <ul>
@@ -111,14 +113,15 @@ The font family used is Lato.</p>
 <li><a href="#recalling-a-snapshot" id="toc-recalling-a-snapshot"><span class="toc-section-number">6.1.2</span> Recalling a snapshot</a></li>
 <li><a href="#deleting-a-snapshot" id="toc-deleting-a-snapshot"><span class="toc-section-number">6.1.3</span> Deleting a snapshot</a></li>
 </ul></li>
-<li><a href="#list-of-all-morserino-32-preferences" id="toc-list-of-all-morserino-32-preferences"><span class="toc-section-number">6.2</span> List of All Morserino-32 preferences</a>
+<li><a href="#player-identity-and-game-scores" id="toc-player-identity-and-game-scores"><span class="toc-section-number">6.2</span> Player identity and game scores</a></li>
+<li><a href="#list-of-all-morserino-32-preferences" id="toc-list-of-all-morserino-32-preferences"><span class="toc-section-number">6.3</span> List of All Morserino-32 preferences</a>
 <ul>
-<li><a href="#general-preferences" id="toc-general-preferences"><span class="toc-section-number">6.2.1</span> General Preferences</a></li>
-<li><a href="#preferences-regarding-key-paddles-and-keyer" id="toc-preferences-regarding-key-paddles-and-keyer"><span class="toc-section-number">6.2.2</span> Preferences regarding Key, Paddles and Keyer</a></li>
-<li><a href="#preferences-regarding-koch-character-sequence" id="toc-preferences-regarding-koch-character-sequence"><span class="toc-section-number">6.2.3</span> Preferences regarding Koch Character Sequence</a></li>
-<li><a href="#preferences-regarding-cw-generation" id="toc-preferences-regarding-cw-generation"><span class="toc-section-number">6.2.4</span> Preferences regarding CW Generation</a></li>
-<li><a href="#preferences-regarding-echo-trainer" id="toc-preferences-regarding-echo-trainer"><span class="toc-section-number">6.2.5</span> Preferences regarding Echo Trainer</a></li>
-<li><a href="#preferences-regarding-transmitting-and-decoding" id="toc-preferences-regarding-transmitting-and-decoding"><span class="toc-section-number">6.2.6</span> Preferences regarding Transmitting and Decoding</a></li>
+<li><a href="#general-preferences" id="toc-general-preferences"><span class="toc-section-number">6.3.1</span> General Preferences</a></li>
+<li><a href="#preferences-regarding-key-paddles-and-keyer" id="toc-preferences-regarding-key-paddles-and-keyer"><span class="toc-section-number">6.3.2</span> Preferences regarding Key, Paddles and Keyer</a></li>
+<li><a href="#preferences-regarding-koch-character-sequence" id="toc-preferences-regarding-koch-character-sequence"><span class="toc-section-number">6.3.3</span> Preferences regarding Koch Character Sequence</a></li>
+<li><a href="#preferences-regarding-cw-generation" id="toc-preferences-regarding-cw-generation"><span class="toc-section-number">6.3.4</span> Preferences regarding CW Generation</a></li>
+<li><a href="#preferences-regarding-echo-trainer" id="toc-preferences-regarding-echo-trainer"><span class="toc-section-number">6.3.5</span> Preferences regarding Echo Trainer</a></li>
+<li><a href="#preferences-regarding-transmitting-decoding-and-qso-bot" id="toc-preferences-regarding-transmitting-decoding-and-qso-bot"><span class="toc-section-number">6.3.6</span> Preferences regarding Transmitting, Decoding and QSO Bot</a></li>
 </ul></li>
 </ul></li>
 <li><a href="#appendices" id="toc-appendices"><span class="toc-section-number">7</span> Appendices</a>
@@ -1339,7 +1342,7 @@ The font family used is Lato.</p>
 <p>You can use this transceiver mode to communicate with your CW buddy using WiFi, either on your local area network, or across the Internet, or even peer-to-peer without an access point – this method is called <em>EspNow</em>, and the Morserino uses its broadcast functionality – this is then very similar to using LoRa, and obviously the range is limited (depending on the environment, from a few meters up to maybe 50 meters if there is a clear line of sight). See further down in section <strong>5.8.6 WiFi Select</strong> how to select either an access point or EspNow for the WiFi Trx mode.</p>
 <h4 class="unnumbered" id="using-two-different-espnow-channels">Using two different EspNow Channels</h4>
 <p>Morserino-32 can make use of two channels when operating in EspNow mode. This can be used, for example, in a class room situation, to create two independent groups that do not interfere with each other, or in environments suffering from very high WiFi “noise” - when the primary channel does not work properly, try the secondary channel.</p>
-<p>The channels are selected through the preference <strong>Trx Channel</strong>, see section <strong>6.2.6 Preferences regarding Transmitting and Decoding</strong>.</p>
+<p>The channels are selected through the preference <strong>Trx Channel</strong>, see section <strong>6.2.6 Preferences regarding Transmitting, Decoding and QSO Bot</strong>.</p>
 <h4 class="unnumbered" id="using-standard-wifi-with-an-access-point-wifi-router">Using standard WiFi with an access point (WiFi router)</h4>
 <p>To use traditional Wi-Fi, you must be connected to a Wi-Fi access point. This means you must have performed the <strong>Wi-Fi Config</strong> function beforehand. It is very easy to use transceiver mode on your local network: select it from the menu to communicate without configuring a peer address. It will send to the broadcast address 255.255.255.255, which can be received by all devices on the network. The Morserino-32 uses UDP port 7373 for asynchronous communication.</p>
 <p>When you start WiFi Trx, the IP address of your peer (or “IP Broadcast”) will briefly appear on the display. If you are using EspNow, EspNow will be indicated.</p>
@@ -1348,17 +1351,45 @@ The font family used is Lato.</p>
 <p>If the IP address is not on your local network and you are behind a firewall or router that treats your network as private, the Morserino can send packets to the internet (unless specific firewall rules block most UDP ports), but packets from your peer behind another firewall will be blocked by the router. In this case, you need to configure “port forwarding” to tell the router to send all UDP packets on port 7373 to your Morserino. At the same time, you need to give your buddy your outside IP address (i.e., the IP address of your router’s interface with your internet provider), and he or she must do the same by giving you his or her internet-facing IP address, which you will enter into your Morserino. It sounds complicated at first, but it isn’t really that bad.</p>
 <p>Another option, perhaps a bit more complicated, would be to set up a VPN (Virtual Private Network), so that both your Morserinos are on the same “virtual network” and hence can talk to each other without any firewall rules blocking the traffic. How to do this goes clearly beyond the scope of this manual – ask an Internet guru for further details!</p>
 <h3 data-number="5.5.3" id="icwext-trx"><span class="header-section-number">5.5.3</span> iCW/Ext Trx</h3>
-<p>In this mode a transceiver connected to the Morserino-32 is being keyed, or you can use the line-out audio to either key for example an FM transceiver, or use CW over the Internet (iCW – this uses Mumble as an audio exchange protocol). Using Bluetooth, you can also connect to a computer and through that computer to VBand, another Internet-based CW facility (see the section <strong>6.2.1 General Preferences</strong> for choosing the VBand bluetooth setting).</p>
+<p>In this mode a transceiver connected to the Morserino-32 is being keyed, or you can use the line-out audio to either key for example an FM transceiver, or use CW over the Internet (iCW – this uses Mumble as an audio exchange protocol). Using Bluetooth, you can also connect to a computer and through that computer to VBand, another Internet-based CW facility (see the section <strong>6.2.2 Preferences regarding Key, Paddles and Keyer</strong> for choosing the VBand bluetooth setting).</p>
 <p>Any CW signals coming in as audio through the audio-in port are being decoded and displayed on the screen. An external transceiver connected through the connector “to Tx” will be keyed by the keyer, or you can use the audio output on the Line-Out connector to feed it into a computer, or into an FM transceiver.</p>
+<h3 data-number="5.5.4" id="qso-bot"><span class="header-section-number">5.5.4</span> QSO Bot</h3>
+<p>The QSO Bot is a simulated CW QSO partner that lets you practise complete, realistic radio contacts off-air. The bot sends in Morse code and copies what you key back, reacting in character — so you can rehearse the give and take of a real contact at your own pace, without going on the air. It is a training partner only: it <strong>never transmits over LoRa, WiFi or the external transmitter</strong> — it only sounds on the local sidetone, so it is safe to use at any time.</p>
+<p>There are three QSO types, selectable from the menu under <strong>Transceiver → QSO Bot</strong>:</p>
+<ul>
+<li><strong>SOTA/POTA</strong> — a Summits-On-The-Air or Parks-On-The-Air contact (callsign, signal report, summit/park reference). The bot picks SOTA or POTA at random and tells you which in its CQ.</li>
+<li><strong>Standard</strong> — a classic “rubber-stamp” QSO: signal report, name and QTH, then station details (rig, antenna, weather, age), then a sign-off.</li>
+<li><strong>Contest</strong> — a continuous run of very short contest QSOs. The exchange format is set with the <strong>Contest Type</strong> preference (see <strong>6.2.6 Preferences regarding Transmitting, Decoding and QSO Bot</strong>): <strong>CQ WW</strong> (RST + CQ zone) or <strong>WPX/Sprint</strong> (RST + serial number).</li>
+</ul>
+<h4 class="unnumbered" id="display-and-controls">Display and controls</h4>
+<p>The QSO Bot uses the same screen layout and controls as the CW Keyer and transceiver modes. What the bot sends appears in <strong>bold</strong>; what you key is shown as it is decoded. The top status line shows the keyer mode and your speed. Turning the ENCODER changes speed (or volume, after a short press of the FN button); a long press of FN switches to scroll mode so you can read back the transcript; a double-click of the ENCODER button opens the preferences; a long press of the ENCODER button leaves the QSO Bot.</p>
+<h4 class="unnumbered" id="who-calls-cq">Who calls CQ</h4>
+<p>When you start a QSO type, the bot listens for a few seconds. <strong>If you call CQ</strong>, the bot answers you — you are the activator (SOTA/POTA) or the running station (contest). <strong>If you stay silent</strong>, the bot calls CQ and you answer it. There is no preference to set for this; just as on the air, whoever calls CQ takes the lead. The bot uses a fresh callsign for every contact, so you get plenty of different calls to copy.</p>
+<h4 class="unnumbered" id="keying-to-the-bot">Keying to the bot</h4>
+<p>The bot is deliberately forgiving, so practice feels natural rather than like a spelling test:</p>
+<ul>
+<li>It recognises your information inside the usual conversational padding — <code>de oe1wkl k</code>, <code>r ur 599 599 bk</code>, <code>qth vienna vienna</code> all work; the filler words are ignored.</li>
+<li>Signal reports may be sent as full numbers or as <strong>cut numbers</strong> (<code>5nn</code> for 599, <code>t</code> for 0, <code>a</code> for 1, <code>n</code> for 9).</li>
+<li><strong>The bot waits for you to finish.</strong> It only answers once you send an end-of-over signal (<code>k</code>, <code>&lt;sk&gt;</code>, <code>&lt;ar&gt;</code>, <code>bk</code>, <code>73</code>) or pause for a couple of seconds — it will not key over you while you are still sending.</li>
+<li><strong>To correct a mistake</strong>, send <code>&lt;err&gt;</code> (a run of dits) or <code>eeee</code>, then send the corrected information; the bot discards what you retracted and takes the new version.</li>
+<li><strong>To ask for a repeat</strong>, send <code>agn</code> or <code>rpt</code>; the bot repeats its last over. You can also ask for one item — <code>rpt rst</code>, <code>rpt call</code>, <code>rpt qth</code> — and the bot repeats just that.</li>
+</ul>
+<p>If you key something the bot cannot make sense of, or you go quiet partway through, it reacts the way a real operator would — <code>agn agn</code>, <code>qrz?</code>, or by repeating its last over — rather than simply stopping.</p>
+<h4 class="unnumbered" id="sota-pota">SOTA / POTA</h4>
+<p>The bot plays a summit or park activation. If it calls CQ, it is the activator and sends a summit/park reference chosen to match the country of its callsign (<code>oe/st-002</code> for an Austrian call, <code>w6/ss-001</code> for a US call, and so on); you call in as the chaser and exchange signal reports. If <strong>you</strong> call CQ, you are the activator and the bot chases you. Occasionally the bot that answers your CQ turns out to be an activator too, and sends its own reference — a Summit-to-Summit / Park-to-Park contact (it can even be SOTA-to-POTA). A SOTA/POTA session is a single contact; the bot signs off when it is done.</p>
+<h4 class="unnumbered" id="standard">Standard</h4>
+<p>This is a full “rag-chew”-style rubber-stamp QSO in three rounds: first signal report, name and QTH; then station details (rig, antenna, weather, age); then the sign-off. The bot sends realistic details of its own and copies yours. It parses your information from the <strong>field keywords</strong> — <code>name</code>, <code>qth</code>, <code>rig</code>, <code>ant</code>, <code>wx</code>, <code>age</code> — so it does not matter whether you separate them with <code>=</code>, with <code>es</code>, or with nothing at all, and values may be more than one word (<code>rig icom 7300</code>). It picks up your name and uses it when it comes back to you (<code>fb dr willi</code>). A valid contact needs a signal report, so if your first over has a name and QTH but no RST, the bot asks <code>pse ur rst?</code> before going on.</p>
+<h4 class="unnumbered" id="contest">Contest</h4>
+<p>Contest practice is a continuous session of very short QSOs. Set <strong>Contest Type</strong> first: <strong>CQ WW</strong> exchanges a signal report plus CQ zone (the bot uses the real zone for its callsign’s country), <strong>WPX/Sprint</strong> exchanges a signal report plus a serial number. As soon as one QSO finishes, the running station calls CQ again — if the bot is running it calls CQ with a new callsign; if you are running, a new station answers your next CQ. The session keeps going as long as you keep working stations, and ends automatically after about fifteen seconds with no reply (nobody answering the bot’s CQ, or you not calling CQ again). Press a button to return to the menu when the session ends.</p>
 <h2 data-number="5.6" id="cw-decoder"><span class="header-section-number">5.6</span> CW Decoder</h2>
 <p>In this mode, Morse code characters are being decoded and shown on the screen. The Morse code can either be entered via a Morse key (“straight key” - connected to the jack where you would normally connect an external paddle; you can also use one or both of the touch paddles to manually key the decoder). Using the decoder in this way, you can control and improve your keying with a straight key, by checking, if the decoder decodes correctly what you tried to send.</p>
-<p>You can also decode a tone input (at the audio input port) taken for example from a receiver. The tone should be at around 700 Hz. Optionally there is a pretty sharp filter (implemented in software) that detects just tones in a very narrow range around 700 Hz, and disregards all others. This is being used by selecting the preference “Narrow” (see the section <strong>6.2.6 Preferences regarding Transmitting and Decoding</strong>).</p>
+<p>You can also decode a tone input (at the audio input port) taken for example from a receiver. The tone should be at around 700 Hz. Optionally there is a pretty sharp filter (implemented in software) that detects just tones in a very narrow range around 700 Hz, and disregards all others. This is being used by selecting the preference “Narrow” (see the section <strong>6.2.6 Preferences regarding Transmitting, Decoding and QSO Bot</strong>).</p>
 <p>The status line is slightly different from the other modes. First of all, the rotary encoder is always in the volume setting mode – speed is determined from the decoded Morse code and cannot be set manually. Pressing the ENCODER button will end the decoder mode and bring you back to the Start Menu.</p>
 <p>On the left of the status display at the top, you will see a small square or rectangle whenever the key is pressed (or a 700 Hz tone is detected), and to the right of it the letter <strong>d</strong> – this replaces the indicator for the keyer mode that is visible in the other Morserino modes.</p>
 <p>The current speed as detected by the decoder is displayed as WpM on the status line.</p>
-<p>This mode does not have many preferences (see the section <strong>6.2.6 Preferences regarding Transmitting and Decoding</strong>); maybe the most important is the ability to switch the filter bandwidth of the audio decoder between narrow (ca 150 Hz) and wide (ca 600 Hz). For decoding signals from a transceiver (where there might be other signals in the vicinity), it is usually best to set the bandwidth to <strong>Narrow</strong> and tune the signal to 700 Hz (± 5%). For decoding signals from an FM transceiver, or from iCW or other environments with little interference, it is better to use the <strong>Wide</strong> setting – in that case the audio frequency does not need to be very close to 700 Hz.</p>
+<p>This mode does not have many preferences (see the section <strong>6.2.6 Preferences regarding Transmitting, Decoding and QSO Bot</strong>); maybe the most important is the ability to switch the filter bandwidth of the audio decoder between narrow (ca 150 Hz) and wide (ca 600 Hz). For decoding signals from a transceiver (where there might be other signals in the vicinity), it is usually best to set the bandwidth to <strong>Narrow</strong> and tune the signal to 700 Hz (± 5%). For decoding signals from an FM transceiver, or from iCW or other environments with little interference, it is better to use the <strong>Wide</strong> setting – in that case the audio frequency does not need to be very close to 700 Hz.</p>
 <h2 data-number="5.7" id="games"><span class="header-section-number">5.7</span> Games</h2>
-<p>The Morserino Pocket features now CW-based games that make learning and practicing Morse code more engaging. Games are found under the “Games” menu entry. Currently, the “Morse Invaders” game is the first that is available.</p>
+<p>The Morserino Pocket features now CW-based games that make learning and practicing Morse code more engaging. Games are found under the “Games” menu entry. Four games are currently available: <strong>Morse Invaders</strong>, <strong>Fight the Pileup</strong>, <strong>Radio Cave</strong>, and <strong>Morsel</strong>.</p>
 <h3 data-number="5.7.1" id="morse-invaders"><span class="header-section-number">5.7.1</span> Morse Invaders</h3>
 <p>Morse Invaders is a game where characters fall down the color display, and you must key the correct Morse code to destroy them before they reach the bottom. It combines the fun of a classic arcade game with effective CW training.</p>
 <p>The character pool is determined by your current Koch lesson setting – the game uses exactly the characters you have been learning. This means the game adapts to your level automatically. Each Koch lesson forms a “stratum” within which sub-levels of increasing difficulty are formed by raising the speed at which characters fall and how often new ones appear.</p>
@@ -1385,7 +1416,6 @@ The font family used is Lato.</p>
 <p>ENCODER click (short press): Pause the game. Click again to resume.</p>
 <p>ENCODER long press: Exit the game and return to the Morserino menu.</p>
 <p>FN short press: Toggle between speed and volume control.</p>
-<p>FN long press: Also exits the game.</p>
 <h4 class="unnumbered" id="scoring">Scoring</h4>
 <p>Base points per destroyed character are 10, multiplied by several factors:</p>
 <ul>
@@ -1405,9 +1435,10 @@ The font family used is Lato.</p>
 <h4 class="unnumbered" id="tips-for-beginners">Tips for Beginners</h4>
 <p>Start with a lower Koch lesson (fewer characters) and a comfortable speed. The game is most effective as a training tool when you are challenged but not overwhelmed. If characters reach the bottom too quickly, reduce your starting sub-level or lower the WPM. As your recognition improves, increase the Koch lesson to add more characters to the pool.</p>
 <h3 data-number="5.7.2" id="fight-the-pileup"><span class="header-section-number">5.7.2</span> Fight the Pileup</h3>
-<p><strong>Fight the Pileup</strong> is a CW training game where you practice copying and keying callsigns under time pressure — just like working a real pileup on the bands. The game plays random callsigns as CW audio, and you must decode them by ear and key them back correctly before time runs out.</p>
+<p><strong>Fight the Pileup</strong> is a CW training game where you practise copying and keying callsigns under time pressure — just like working a real pileup on the bands. Callsigns arrive as CW audio; you decode them by ear and key them back before they give up. It can be played solo against the device, or as a multiplayer “last station standing” match against other M32 Pockets in the same room.</p>
+<p>Fight the Pileup is only available on the M32 Pocket.</p>
 <h4 class="unnumbered" id="starting-the-game-1">Starting the Game</h4>
-<p>From the main menu, navigate to <strong>Games → Fight Pileup</strong>. If this is your first time playing, you will be asked to enter your callsign and name using the encoder and buttons:</p>
+<p>From the main menu, navigate to <strong>Games → Fight Pileup</strong>. The first time you play, you are asked to enter your callsign and name with the encoder and buttons:</p>
 <ul>
 <li><strong>Encoder:</strong> Select a character</li>
 <li><strong>Click:</strong> Add the character</li>
@@ -1416,7 +1447,7 @@ The font family used is Lato.</p>
 </ul>
 <p>Your callsign and name are saved and remembered for future sessions.</p>
 <h4 class="unnumbered" id="the-lobby">The Lobby</h4>
-<p>After entering your identity, you arrive at the lobby screen. Here you can configure the game before entering the pileup:</p>
+<p>The lobby is where you set up a game before entering the pileup:</p>
 <ul>
 <li><strong>Encoder:</strong> Select difficulty level (EASY, NORMAL, HARD, EXPERT)</li>
 <li><strong>Click:</strong> Toggle between Single Player and Multiplayer mode</li>
@@ -1424,13 +1455,14 @@ The font family used is Lato.</p>
 <li><strong>Paddles:</strong> Enter the pileup (starts the code challenge)</li>
 <li><strong>Long press:</strong> Exit to menu</li>
 </ul>
-<p>The difficulty level controls how much time you have to respond, how many timeouts before you lose a life, and how quickly new challenges appear:</p>
+<p>The difficulty level controls how long each caller waits for you, how many drops cost a life, how fast new callers arrive, and how soon the callsign hint is revealed:</p>
 <table>
 <thead>
 <tr>
 <th>Level</th>
-<th>Timeout</th>
-<th>Drops per Life</th>
+<th>Caller timeout</th>
+<th>Drops per life</th>
+<th>Plays before hint</th>
 </tr>
 </thead>
 <tbody>
@@ -1438,52 +1470,48 @@ The font family used is Lato.</p>
 <td>EASY</td>
 <td>45 sec</td>
 <td>5</td>
+<td>3</td>
 </tr>
 <tr>
 <td>NORMAL</td>
 <td>30 sec</td>
 <td>4</td>
+<td>3</td>
 </tr>
 <tr>
 <td>HARD</td>
 <td>20 sec</td>
 <td>3</td>
+<td>2</td>
 </tr>
 <tr>
 <td>EXPERT</td>
 <td>12 sec</td>
 <td>2</td>
+<td>1</td>
 </tr>
 </tbody>
 </table>
+<p>In <strong>Multiplayer</strong> the lobby additionally shows the ESP-NOW <strong>Channel</strong> (Standard or Secondary) and a live list of the other players it has found. All devices must be set to the <strong>same channel</strong> to see each other — this is the LoRa/ESP-NOW channel preference.</p>
 <h4 class="unnumbered" id="code-challenge-entry-gate">Code Challenge (Entry Gate)</h4>
-<p>Before entering the pileup, you must key a short random code (4 characters) on your paddles. This serves as a warm-up and confirms that your paddles are working. Each correctly keyed character lights up in green. If you make a mistake, the sequence resets — just try again.</p>
-<p>Long press to cancel and return to the lobby.</p>
+<p>Before the pileup starts you key a short random code (4 characters) on your paddles — a warm-up that also confirms your paddles work. Each correct character lights up green; a mistake resets the sequence, just try again. You can already set your keying <strong>speed</strong> here: the <strong>encoder</strong> changes WPM, <strong>FN</strong> toggles it to volume, and the current value is shown on screen. Long press to cancel back to the lobby.</p>
 <h4 class="unnumbered" id="gameplay">Gameplay</h4>
-<p>Once you pass the code challenge, the pileup begins. The game presents you with a continuous stream of random callsigns to decode and key back.</p>
-<h4 class="unnumbered" id="how-it-works">How It Works</h4>
+<p>Callsigns (“callers”) arrive and queue up. You always work the <strong>oldest</strong> one first — that is the active caller, shown under <strong>DEFEND!</strong></p>
 <ol type="1">
-<li><p><strong>Listen:</strong> A callsign is played as CW audio at a different pitch from your sidetone, so you can distinguish it from your own keying. The callsign repeats automatically.</p></li>
-<li><p><strong>Decode:</strong> Try to identify the callsign by ear. After the 3rd play, a text hint appears on screen — but try to get it before that!</p></li>
-<li><p><strong>Key your response:</strong> Use your paddles to key the callsign you heard. Your keyed characters appear on screen as they are decoded.</p></li>
-<li><p><strong>Automatic submission:</strong> Your response is automatically submitted after a word-length pause (about 1 second of silence). You can also click the encoder to submit immediately.</p></li>
-<li><p><strong>Result:</strong></p>
+<li><p><strong>Listen.</strong> The active caller is played as CW audio at a slightly lower pitch than your sidetone, so you can tell it apart from your own keying. It repeats automatically.</p></li>
+<li><p><strong>Decode.</strong> Identify the callsign by ear. After a few plays (3 on Easy and Normal, 2 on Hard, 1 on Expert) the text is revealed on screen as a hint — but try to beat it.</p></li>
+<li><p><strong>Key it back.</strong> Key the callsign on your paddles; your decoded characters appear as you go. A word-length pause (about a second) submits automatically, or click the encoder to submit at once.</p></li>
+<li><p><strong>Result.</strong></p>
 <ul>
-<li><strong>Correct:</strong> A brief “OK!” flash with your score bonus, then the next challenge starts automatically.</li>
-<li><strong>Wrong:</strong> A “WRONG” flash. The CW plays again so you can retry with the same callsign.</li>
-<li><strong>Timeout:</strong> If the progress bar runs out before you respond correctly, you lose points and a new challenge begins.</li>
+<li><strong>Correct</strong> — the caller is cleared, you score, and you immediately <strong>earn an attack</strong> (see below).</li>
+<li><strong>Wrong</strong> — the CW replays so you can try the same caller again; there is no limit on retries within its time window.</li>
 </ul></li>
 </ol>
-<h4 class="unnumbered" id="screen-layout">Screen Layout</h4>
-<p>From top to bottom:</p>
-<ul>
-<li><strong>HUD bar:</strong> Lives (red dots), your callsign/name, current score, streak multiplier</li>
-<li><strong>Progress bar:</strong> Time remaining for the current challenge (green → yellow → red)</li>
-<li><strong>Challenge area:</strong> Play counter and hint (after 3 plays)</li>
-<li><strong>Input area:</strong> Your keyed response</li>
-<li><strong>Stats:</strong> Correct and missed counts</li>
-<li><strong>Status bar:</strong> Current WPM and volume level</li>
-</ul>
+<p>Each caller has its own time window, shown by the progress bar (green → yellow → red). The window starts when the caller becomes the <em>active</em> one, so every caller gets a fair, full chance. If the active caller’s window runs out it is <strong>dropped</strong>. And if callers pile up faster than you clear them, the ones waiting at the back eventually <strong>give up</strong> (“MISSED!”) — that counts as a drop too. Keeping the pile short is the real challenge.</p>
+<h4 class="unnumbered" id="earning-and-keying-attacks">Earning and Keying Attacks</h4>
+<p>Every caller you copy correctly earns you one <strong>attack</strong>. The pileup pauses and a magenta prompt — <strong>YOUR ATTACK — SEND:</strong> followed by a callsign — appears. Key that callsign on your paddles to “send” it. In <strong>single player</strong> this simply scores a bonus; in <strong>multiplayer</strong> the callsign is fired at another player and lands in <em>their</em> pile as a caller they must defend (see <em>Multiplayer</em> below). While you are keying an attack the pileup is frozen — callers neither arrive nor time out — so you can take your time. Send the attack to return to defending.</p>
+<h4 class="unnumbered" id="lives-and-game-over-solo">Lives and Game Over (solo)</h4>
+<p>You start with <strong>3 lives</strong>. Every <em>N</em> drops (the “drops per life” for your difficulty) costs one life; both timed-out callers and “MISSED” give-ups count. When your last life is gone the game ends, and the game-over screen shows your score, callsigns defended vs. dropped, accuracy, best streak, and the settings you played with. Press <strong>Click</strong> to play again (back to the lobby) or <strong>Long press</strong> to exit to the main menu.</p>
 <h4 class="unnumbered" id="scoring-1">Scoring</h4>
 <table>
 <thead>
@@ -1494,24 +1522,30 @@ The font family used is Lato.</p>
 </thead>
 <tbody>
 <tr>
-<td>Correct answer</td>
-<td>+100 base + 10 × streak bonus</td>
+<td>Correct caller</td>
+<td>+100 base + 10 × streak</td>
+</tr>
+<tr>
+<td>Attack sent</td>
+<td>+50</td>
 </tr>
 <tr>
 <td>Wrong answer</td>
 <td>−50</td>
 </tr>
 <tr>
-<td>Timeout</td>
+<td>Timed-out caller</td>
 <td>−25</td>
 </tr>
 </tbody>
 </table>
-<p>The streak counter increases with each consecutive correct answer and resets on any wrong answer or timeout. A higher streak means more bonus points per correct answer.</p>
-<h4 class="unnumbered" id="lives">Lives</h4>
-<p>You start with 3 lives. Every N timeouts costs you a life (N depends on the difficulty level). When all lives are lost, the game ends and your final score is displayed.</p>
+<p>Your <strong>streak</strong> grows with each correct copy and resets on a wrong answer or a timed-out caller; a higher streak adds more bonus per copy — and makes new callers arrive faster.</p>
 <h4 class="unnumbered" id="controls-during-play">Controls During Play</h4>
 <table>
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 47%" />
+</colgroup>
 <thead>
 <tr>
 <th>Control</th>
@@ -1521,56 +1555,47 @@ The font family used is Lato.</p>
 <tbody>
 <tr>
 <td><strong>Paddles</strong></td>
-<td>Key your response</td>
+<td>Key your response (or the attack callsign)</td>
 </tr>
 <tr>
 <td><strong>Encoder</strong></td>
-<td>Adjust WPM speed or volume (see FN toggle)</td>
+<td>Adjust WPM speed, or volume (see FN)</td>
 </tr>
 <tr>
 <td><strong>Click</strong> (encoder)</td>
 <td>Submit your response immediately</td>
 </tr>
 <tr>
-<td><strong>FN short click</strong></td>
-<td>Toggle encoder between WPM and volume</td>
+<td><strong>FN (short click)</strong></td>
+<td>Toggle the encoder between <strong>speed</strong> and <strong>volume</strong></td>
 </tr>
 <tr>
-<td><strong>Long press</strong> (encoder or FN)</td>
-<td>Exit game</td>
+<td><strong>Long press</strong> (encoder)</td>
+<td>Exit the game</td>
 </tr>
 </tbody>
 </table>
-<p>The status bar shows which parameter the encoder controls, indicated by a <code>&lt;</code> arrow:</p>
-<pre><code>15 wpm &lt;      ← encoder adjusts speed
-Vol 12
-
-15 wpm
-&lt; Vol 12      ← encoder adjusts volume</code></pre>
+<p>The bottom status line shows the value the encoder currently controls — <code>15 wpm</code> or <code>Vol 12</code> — and pressing <strong>FN</strong> swaps between them.</p>
+<h4 class="unnumbered" id="multiplayer">Multiplayer</h4>
+<p>In multiplayer, two or more M32 Pockets in the same room play at the same time and attack each other; the <strong>last player still in the game wins</strong>.</p>
+<p><strong>Set-up.</strong> On every device open Fight the Pileup and, in the lobby, press <strong>Click</strong> to switch to <strong>Multiplayer</strong>. Make sure all devices show the <strong>same Channel</strong> (Standard or Secondary). Within a few seconds each device lists the others under MULTIPLAYER. When everyone is ready, each player keys in on the paddles to start — players need not start at exactly the same moment.</p>
+<p><strong>Attacks.</strong> Whenever you correctly copy a caller and key your earned attack, that callsign is sent to one of the other players at random. On their device it appears as a caller marked <strong>FROM</strong> plus your callsign, shown in magenta, to be defended like any other; likewise, callsigns the others send land in <em>your</em> pile. Bot callers keep coming as well, so the pressure never lets up.</p>
+<p><strong>Opponents.</strong> During the pileup a compact strip near the top of the screen lists the other players and their remaining lives, updating live as they take damage; a player who has been knocked out is shown dimmed.</p>
+<p><strong>Winning.</strong> When you lose your last life you are out; your screen shows the game-over stats and waits for the result. The last player still alive wins: that device shows <strong>YOU WIN!</strong>, and every other device shows <strong>WINNER:</strong> followed by the winning callsign. From there, <strong>Click</strong> returns to the lobby for another match and <strong>Long press</strong> exits.</p>
 <h4 class="unnumbered" id="tips-for-beginners-1">Tips for Beginners</h4>
 <ul>
-<li><p><strong>Start on EASY difficulty.</strong> The 45-second timeout gives you plenty of time to listen to the callsign multiple times before attempting to key it.</p></li>
-<li><p><strong>Don’t rush.</strong> Wait for the text hint to appear after 3 plays if you’re not sure. There’s no penalty for waiting — only for timeouts.</p></li>
-<li><p><strong>Lower the WPM.</strong> Use the encoder to reduce the speed if the CW is too fast. The challenge plays at the same WPM as your keying speed.</p></li>
-<li><p><strong>Listen for the structure.</strong> Callsigns follow patterns: usually a 1-3 letter prefix, a digit, then 1-3 letter suffix (e.g., DL1ABC, W3XY, VK2GR).</p></li>
-<li><p><strong>Wrong answers let you retry.</strong> If you make a mistake, the same callsign replays — you get unlimited attempts within the timeout period.</p></li>
+<li><p><strong>Start on EASY.</strong> The 45-second window lets you hear each caller several times before you commit.</p></li>
+<li><p><strong>Use the hint.</strong> If you are unsure, wait for the callsign to be revealed — there is no penalty for taking your time, only for letting callers drop.</p></li>
+<li><p><strong>Slow down.</strong> Lower the WPM with the encoder; callers are played at your own keying speed.</p></li>
+<li><p><strong>Learn the shapes.</strong> Callsigns follow patterns: a 1–3 letter prefix, a digit, then a 1–3 letter suffix (DL1ABC, W3XY, VK2GR).</p></li>
+<li><p><strong>Keep the pile short.</strong> Especially in multiplayer, clear callers quickly — if the queue grows, the oldest callers give up and cost you lives.</p></li>
 </ul>
-<h4 class="unnumbered" id="game-over-1">Game Over</h4>
-<p>When all lives are lost, the game over screen shows your final statistics:</p>
-<ul>
-<li><strong>Score:</strong> Your total points</li>
-<li><strong>Defended / Dropped:</strong> How many callsigns you got right vs. timed out</li>
-<li><strong>Accuracy:</strong> Percentage of correct answers</li>
-<li><strong>Best streak:</strong> Longest run of consecutive correct answers</li>
-<li><strong>WPM / Difficulty:</strong> The settings you played with</li>
-</ul>
-<p>Press <strong>Click</strong> to play again (returns to lobby) or <strong>Long press</strong> to exit to the main menu.</p>
 <h3 data-number="5.7.3" id="radio-cave"><span class="header-section-number">5.7.3</span> Radio Cave</h3>
 <p><strong>Radio Cave</strong> is a text-based adventure game inspired by the classic <em>Colossal Cave Adventure</em>. You play as a ham radio operator who discovers an abandoned Cold War-era radio station hidden inside a mountain cave. Your mission: explore the station, repair the equipment, and complete a QSO with a remote station that has been calling for over 50 years.</p>
 <p>Unlike the other games, Radio Cave does not use scoring or time pressure. Instead, it is a puzzle-based exploration game where you navigate rooms, collect items, and solve challenges — all by keying commands as Morse code. CW clues are woven into the game world: some information is only revealed as Morse audio, and the final challenge requires you to key a real QSO exchange on your paddles.</p>
 <p>Radio Cave is only available on the M32Pocket.</p>
 <h4 class="unnumbered" id="starting-the-game-2">Starting the Game</h4>
-<p>From the main menu, navigate to <strong>Games → Radio Cave</strong>. After a brief lobby screen, key any letter on the paddles or click the encoder to enter the game. If a saved game exists, it loads automatically and you continue where you left off; otherwise a new game begins.</p>
+<p>From the main menu, navigate to <strong>Games → Radio Cave</strong>. After a brief lobby screen, key any letter on the paddles to enter the game. If a saved game exists, it loads automatically and you continue where you left off; otherwise a new game begins.</p>
 <h4 class="unnumbered" id="how-to-play">How to Play</h4>
 <p>The game displays text descriptions on the TFT screen. You explore by keying short commands as Morse code using the paddles. The game understands full words, abbreviations, and even single-letter shortcuts — whatever is fastest on the key. There is no time pressure, so take whatever speed feels comfortable.</p>
 <h4 class="unnumbered" id="display-layout-1">Display Layout</h4>
@@ -1715,10 +1740,237 @@ Vol 12
 <li><p>There is one fatal mistake possible in this game. The station has a warning about it. Read the manual — the one in the game, that is.</p></li>
 <li><p>The game can be completed, and every puzzle has a logical solution rooted in real radio practice and CW conventions.</p></li>
 </ul>
-<h4 class="unnumbered" id="game-over-2">Game Over</h4>
+<h4 class="unnumbered" id="game-over-1">Game Over</h4>
 <p>There is exactly one fatal mistake in Radio Cave. If it happens, a death screen appears; key any letter or click the encoder to restart from the beginning. Your save is wiped and your step counter resets.</p>
 <p>There is also one situation where the game can become unwinnable through repeated mistakes (you will know when it happens). In that case, key <code>NEW</code> and confirm with <code>Y</code> to start over.</p>
 <p>When you successfully complete the game, a victory screen shows your total step count. Congratulations — the message has finally been received.</p>
+<h3 data-number="5.7.4" id="morsel"><span class="header-section-number">5.7.4</span> Morsel</h3>
+<p><strong>Morsel</strong> is a word-guessing game in which you identify a hidden word from two clues: one randomly chosen letter of the word shown in clear text on the display, and the whole word played in Morse code. The CW clue starts fast — 48 WPM — and slows by 5 WPM each round you don’t solve it, down to a floor of 18 WPM. Solving in fewer guesses is rewarded; finishing the 10-word match in the lowest total adjusted time wins.</p>
+<p>Morsel is only available on the M32Pocket.</p>
+<h4 class="unnumbered" id="starting-the-game-3">Starting the Game</h4>
+<p>From the main menu, navigate to <strong>Games → Morsel</strong>. The lobby shows the current <strong>Koch lesson</strong> and <strong>Word length</strong> settings, along with the controls available. Touch a paddle to begin.</p>
+<h4 class="unnumbered" id="lobby-settings">Lobby Settings</h4>
+<p>Two settings can be adjusted directly in the lobby:</p>
+<table>
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Control</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Encoder (knob)</strong></td>
+<td>Change Koch lesson — temporary for this game session; your training setting is restored on exit</td>
+</tr>
+<tr>
+<td><strong>FN short press</strong></td>
+<td>Cycle the word length: <code>3</code>, <code>4</code>, <code>max 4</code>, <code>5</code>, <code>max 5</code>, <code>6</code>, <code>max 6</code>. Persisted across power cycles. <code>max N</code> means any length from 3 to N.</td>
+</tr>
+<tr>
+<td><strong>FN long press</strong></td>
+<td>View the persistent high-score table</td>
+</tr>
+<tr>
+<td><strong>Encoder click or paddle touch</strong></td>
+<td>Start the game</td>
+</tr>
+<tr>
+<td><strong>Encoder long press</strong></td>
+<td>Quit back to the main menu</td>
+</tr>
+</tbody>
+</table>
+<p>Words are drawn from the combined Morserino dictionary and the ham-abbreviation list, filtered by length and by the current Koch lesson (every letter of every candidate word must be within the characters you have learned). If too few candidate words are available, Morsel shows a “Word pool too small” screen with a suggested minimum Koch lesson and returns you to the lobby.</p>
+<h4 class="unnumbered" id="display-layout-2">Display Layout</h4>
+<p>During play the landscape screen shows:</p>
+<ul>
+<li><strong>Top left:</strong> the current round number (1, 2, 3 …) for the current word.</li>
+<li><strong>Top center:</strong> word progress, e.g. <code>3/10</code>.</li>
+<li><strong>Top right:</strong> the current CW clue speed in WPM (highlighted yellow when at the 18 WPM floor).</li>
+<li><strong>Center:</strong> a row of letter boxes, one per position. The revealed letter is shown in cyan with a cyan border so you can see which position is hinted.</li>
+<li><strong>Bottom center status line:</strong> the current message (“Listen and key the word”, “Correct!”, “Try again”, “Skipped”…).</li>
+<li><strong>Bottom hint line:</strong> <code>click = skip   hold = quit</code>.</li>
+<li><strong>Bottom HUD:</strong> Koch lesson · your <strong>key</strong> WPM · volume. The active encoder target (key WPM or volume) is highlighted yellow.</li>
+</ul>
+<h4 class="unnumbered" id="playing-a-word">Playing a Word</h4>
+<p>A new word picks a random letter to reveal and plays the whole word once at the current round’s speed. You then <strong>key the complete word</strong> on your paddles, including the revealed letter. As you key, each decoded character appears in its box. The CW clue is muted as soon as you start keying.</p>
+<p>A long inter-word pause — once your entry has reached the full word length — submits the guess. Each box is then colored:</p>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr>
+<th>Color</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Green</strong></td>
+<td>Right letter, right position</td>
+</tr>
+<tr>
+<td><strong>Red</strong></td>
+<td>Wrong letter</td>
+</tr>
+<tr>
+<td><strong>Grey</strong></td>
+<td>Revealed slot keyed wrong (the originally revealed letter is shown for reference)</td>
+</tr>
+</tbody>
+</table>
+<p>If you key fewer than the full word length, the pause does <strong>not</strong> submit — this is intentional so you can pause mid-word to think or correct, without an accidental early submit.</p>
+<p>If any box is not green, the same word is replayed at the next slower speed (5 WPM less), and you try again. When all boxes are green, the word is solved; the screen briefly shows the solve time and number of tries, then a new word starts at 48 WPM.</p>
+<h4 class="unnumbered" id="error-correction">Error Correction</h4>
+<p>The <code>&lt;err&gt;</code> prosign (8 consecutive dits, also written <code>&lt;hh&gt;</code>) deletes the last entered character — the same convention used on the air to abort and re-send. Backspacing drops your entry below the full word length and disarms auto-submit, so you can pause and think before re-keying.</p>
+<h4 class="unnumbered" id="skipping-a-hard-word">Skipping a Hard Word</h4>
+<p>If a word genuinely won’t yield even at 18 WPM, press the <strong>encoder (mode) button</strong> briefly to skip. The current word ends, a <code>Skipped (-60s)</code> notice appears, and the game moves on. The skip adds a fixed <strong>60-second penalty</strong> to your total time plus 5 seconds for every guess you had already submitted.</p>
+<h4 class="unnumbered" id="idle-handling">Idle Handling</h4>
+<p>While a clue has finished playing and you have not started keying:</p>
+<ul>
+<li>After about <strong>12 seconds</strong> of no input, Morsel replays the CW clue automatically (same speed — the round does not advance).</li>
+<li>After about <strong>60 seconds</strong> of total inactivity, Morsel returns to its lobby gracefully (the game is abandoned, no score recorded).</li>
+</ul>
+<p>Any keying, encoder turn, or button press resets both timers, including the global power-off Time-Out — so an actively playing user is never kicked out mid-game.</p>
+<h4 class="unnumbered" id="controls-during-the-game-1">Controls During the Game</h4>
+<table>
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Control</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Paddles</strong></td>
+<td>Key your guess</td>
+</tr>
+<tr>
+<td><strong>Encoder</strong></td>
+<td>Adjust your <strong>keying</strong> WPM (independent of the clue speed)</td>
+</tr>
+<tr>
+<td><strong>FN short press</strong></td>
+<td>Toggle the encoder between key WPM and volume</td>
+</tr>
+<tr>
+<td><strong>FN long press</strong></td>
+<td>Quit back to the main menu</td>
+</tr>
+<tr>
+<td><strong>Mode button short press</strong></td>
+<td>Skip the current word (60 s penalty)</td>
+</tr>
+<tr>
+<td><strong>Mode button long press</strong></td>
+<td>Quit back to the main menu</td>
+</tr>
+</tbody>
+</table>
+<p>The CW clue is always played at the round’s scheduled speed regardless of your keying speed — the two are independent.</p>
+<h4 class="unnumbered" id="scoring-2">Scoring</h4>
+<p>For each word:</p>
+<ul>
+<li><strong>Time</strong> is measured from the first CW play to the correct guess.</li>
+<li><strong>+5 seconds penalty per guess submitted</strong> (from the very first guess). Solving in fewer guesses is rewarded.</li>
+<li>A <strong>skipped</strong> word contributes its elapsed time plus the 60-second skip penalty plus 5 s for each guess already made before the skip.</li>
+</ul>
+<p>The game total is the sum of all 10 words’ adjusted times. Lower is better.</p>
+<h4 class="unnumbered" id="game-end-and-high-scores">Game End and High Scores</h4>
+<p>After 10 words, a <strong>GAME OVER</strong> screen shows:</p>
+<ul>
+<li>Your total adjusted time as <code>M:SS</code>.</li>
+<li>Words solved vs. skipped.</li>
+<li>Total number of guesses.</li>
+<li>If your total qualifies for the persistent top-7 list, a <code>NEW HIGH SCORE — rank N</code> banner.</li>
+</ul>
+<p>Clicking the encoder opens the <strong>high-score table</strong>: the top 7 results, sorted by total adjusted time, persisted in non-volatile storage. Each row shows the rank, time, word-length setting (<code>max 4</code>, <code>5</code>, …), the Koch lesson played at (e.g. <code>K12</code>), and the solved/total count. Your latest qualifying entry is shown in green.</p>
+<p>You can also reach the high-score table from the lobby at any time with a long press of the <strong>FN</strong> button.</p>
+<h4 class="unnumbered" id="tips">Tips</h4>
+<ul>
+<li><p>48 WPM is fast on purpose — it’s there to reward decoders who can copy at speed. If you can’t catch it on the first round, just wait for the next replay (it will be 5 WPM slower each round).</p></li>
+<li><p>The revealed letter is a strong anchor — once you know its position you have already constrained the word a lot. Pay attention to its cyan position number under the box.</p></li>
+<li><p>Solving on the <strong>first try</strong> is worth a lot more than solving fast at slower speeds — the +5 s/guess penalty stacks quickly.</p></li>
+<li><p>Raise your Koch lesson if you keep getting the pool-too-small warning: 3-letter words need lesson 8, 4-letter words lesson 10, 5-letter words lesson 14, 6-letter words lesson 16 (using the default Morserino character order).</p></li>
+<li><p>Backspace freely (<code>&lt;err&gt;</code> = 8 dits) — the timer keeps running, but a wrong submitted guess costs you 5 s, so it’s almost always cheaper to fix the mistake than to submit and try again.</p></li>
+</ul>
+<h4 class="unnumbered" id="multiplayer-1">Multiplayer</h4>
+<p>Morsel can also be played as a synchronised multi-player match against other M32 Pockets in the same room, with one device acting as the <strong>server</strong> and any number of others as <strong>clients</strong>. Every player keys the same 10 words at the same time, and at the end the server broadcasts a ranked score table that every device shows simultaneously.</p>
+<h5 class="unnumbered" id="starting-a-multiplayer-game">Starting a Multiplayer Game</h5>
+<p>After choosing <strong>Games → Morsel</strong>, pick <strong>Multiplayer</strong> at the first screen. You can then choose:</p>
+<table>
+<colgroup>
+<col style="width: 42%" />
+<col style="width: 57%" />
+</colgroup>
+<thead>
+<tr>
+<th>Role</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Start as Server</strong></td>
+<td>Opens the server lobby. Adjust the Koch lesson with the encoder and the word length with FN short press; the displayed list shows joined players as they connect. Click the encoder to start the game.</td>
+</tr>
+<tr>
+<td><strong>Join a game</strong></td>
+<td>Opens the client lobby. Searches for a server’s broadcast and shows its settings (length, Koch lesson, word count) once one is found. Wait for the server operator to start.</td>
+</tr>
+</tbody>
+</table>
+<p>Hold the encoder (long press) to step back one level — from a server or client lobby to the role picker, from the role picker to the Single/Multiplayer chooser, and from there out of Morsel.</p>
+<p>Your identity on the network is taken from the <strong>call sign / player name</strong> shared with Fight the Pileup. If neither is set yet, a short MAC-derived tag is used automatically — set your call sign (<code>playerCall</code>) once via the M32 Configuration Tool to appear under it in the ranking.</p>
+<h5 class="unnumbered" id="playing">Playing</h5>
+<p>The server picks 10 words from the pool and broadcasts them to all clients; every device then plays each word locally with the normal single-player engine (CW clue, paddle entry, colour-coded result). The clue speed schedule, scoring rules, error correction, idle handling and skip behaviour are all identical to single-player.</p>
+<p>When a player finishes the 10-word match, their device sends its final score (adjusted time, guess count, words solved) to the server. The server competes as a regular player — no host advantage — and includes its own score in the ranking.</p>
+<h5 class="unnumbered" id="ranking-screen">Ranking Screen</h5>
+<p>Once any player has finished, the server starts broadcasting a sorted <strong>Ranking</strong> screen which all devices render identically:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rank</td>
+<td>Position in the standings (1 is best)</td>
+</tr>
+<tr>
+<td>Player</td>
+<td>Call sign or name</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>Total adjusted time in seconds</td>
+</tr>
+<tr>
+<td>Solved</td>
+<td>Words solved out of 10</td>
+</tr>
+<tr>
+<td>Guesses</td>
+<td>Total guesses across the match</td>
+</tr>
+</tbody>
+</table>
+<p>Your own row is highlighted in yellow. The screen updates live as more players finish; up to six top entries are shown on screen and a <code>+N more</code> indicator appears if more players have reported. Click the encoder to return to the multiplayer lobby; a long press exits Morsel.</p>
+<h5 class="unnumbered" id="networking-notes">Networking Notes</h5>
+<p>The protocol is <strong>ESP-NOW broadcast</strong> on a fixed channel — no router, internet, or pairing is needed; all devices in radio range simply hear each other. The soft cap is <strong>20 players</strong> per match. A device that loses contact with the server is dropped from the displayed ranking after about 8 seconds.</p>
 <h2 data-number="5.8" id="wifi-functions"><span class="header-section-number">5.8</span> WiFi Functions</h2>
 <p>Apart from the functionality of WiFi Transceiver, you can use the WiFi feature of the ESP32 processor used in the Morserino-32 for two functions of the device, when you are using WiFi through an access point, that were of high importance in teh past:</p>
 <ul>
@@ -1821,9 +2073,19 @@ Vol 12
 <h3 data-number="6.1.3" id="deleting-a-snapshot"><span class="header-section-number">6.1.3</span> Deleting a snapshot</h3>
 <p>You can also delete a snapshot that is no longer needed, or that was created in error. Proceed as if you wanted to recall a snapshot, select the one you want to delete, and then <strong>click the FN button</strong> for deleting it. There will be a confirmation dialog to make sure you really want to delete that snapshot. If you rotete the ENCODER to “Yes” and click it, that snapshot will be deleted, and, like with storing and recalling snapshots, a short message will indicate that the action was successful.</p>
 <p>The easiest way to configure your preferences and snapshots is to connect your Morserino via USB to a computer running Chrome, Edge or Opera and using the instructions in <strong>Appendix 7</strong>Using a Browser to set up M32 Preferences**.</p>
-<h2 data-number="6.2" id="list-of-all-morserino-32-preferences"><span class="header-section-number">6.2</span> List of All Morserino-32 preferences</h2>
+<h2 data-number="6.2" id="player-identity-and-game-scores"><span class="header-section-number">6.2</span> Player identity and game scores</h2>
+<p>Two preferences let you tell the Morserino who you are. <strong>Call Sign</strong> and <strong>Op Name</strong> are used by the games (Fight the Pileup, Morsel) and the QSO Bot. Select either item in the preferences menu and an on-screen text editor opens (it works the same on the OLED and the LCD):</p>
+<ul>
+<li><strong>turn the ENCODER</strong> to choose a character,</li>
+<li><strong>click the ENCODER</strong> to add it to the text,</li>
+<li><strong>click the FN button</strong> to delete the last character,</li>
+<li><strong>long-press</strong> either button when you are done.</li>
+</ul>
+<p>Call Sign accepts letters, digits and the slash; Op Name accepts letters and a space. The current value is shown next to the preference.</p>
+<p><strong>Reset Scores</strong> clears the saved high scores and game progress for all games (Morse Invaders, Morsel and Radio Cave). Selecting it shows a confirmation: press <strong>FN</strong> to confirm, or click the ENCODER to cancel.</p>
+<h2 data-number="6.3" id="list-of-all-morserino-32-preferences"><span class="header-section-number">6.3</span> List of All Morserino-32 preferences</h2>
 <p>Bold values are default or recommended ones. When called from the start menu, all preferences are available for modification, when called from a running mode, only those that are relevant for this mode are available.</p>
-<h3 data-number="6.2.1" id="general-preferences"><span class="header-section-number">6.2.1</span> General Preferences</h3>
+<h3 data-number="6.3.1" id="general-preferences"><span class="header-section-number">6.3.1</span> General Preferences</h3>
 <p>A number of preferences are very generic in nature, and therefore apply to all modes of the Morserino-32.</p>
 <table>
 <colgroup>
@@ -1871,7 +2133,7 @@ Vol 12
 </tr>
 <tr>
 <td>Theme</td>
-<td>(For devices with a color screen only, e.g. M32Pocket) You can set a color theme for the display, so you are not confined to white on black.</td>
+<td>(For devices with a color screen only, e.g. M32Pocket) You can set a color theme for the display, so you are not confined to white on black. Each theme (Plain included) also shows Morse-code text in its own accent colour — set apart from menu and status text — and renders the Echo Trainer OK/ERR results in green and red.</td>
 <td><strong>Plain</strong> (= white on black) / Blues / ePaper / Mandarin / Darkroom / Veggie / Garnet / Lemonade / Complements</td>
 </tr>
 <tr>
@@ -1880,18 +2142,13 @@ Vol 12
 <td><strong>Portrait</strong> / Landscape</td>
 </tr>
 <tr>
-<td>BLT Kbd Output</td>
-<td>Defines what is being sent via Bluetooth (Bluetooth keyboard functionality). The VBand option allows the Morserino to be used as a VBand dongle (for VBand see <em>https://hamrad io.solutions/vband/</em>), <strong>Decoded</strong> sends all decoded characters not only to the display, but also out via Bluetooth, and the <strong>Generic</strong> Keyboard option does more or less the same as <strong>Decoded</strong>, but it sends the code for the “<strong>Enter</strong>” Key (New Line) when you key  (new message), and for the “<strong>Backspace</strong>” key when you key  (i.e. 8 dits). The M32 will appear as a US keyboard (QWERTY layout).</td>
-<td><strong>Nothing</strong> / Vband Keying / Decoded / Vband+Decoded / Generic Kbd</td>
-</tr>
-<tr>
 <td>Serial Output</td>
 <td>Here you control what is being sent to serial port (USB connector); distinction is made between keyed characters (output from the iambic keyer), decoded characters (from CW decoder or using a straight key), and “generated” characters (from CW Generator etc., also from the receiver side of LoRa or WiFi Transceiver modes). <strong>Nothing</strong> sends out none of these characters (but certain system or error messages might still appear), while <strong>All</strong> send out everything. In addition, other information can be sent and received via the serial port through the M32 Serial protocol, if the connected computer software supports this. See also <strong>Appendix 8 Using the Serial Output of the M32</strong>.</td>
 <td>Nothing / Keyer / Decoded / Keyed+Decoded / Generated / <strong>All</strong> (default since V. 4.3)</td>
 </tr>
 </tbody>
 </table>
-<h3 data-number="6.2.2" id="preferences-regarding-key-paddles-and-keyer"><span class="header-section-number">6.2.2</span> Preferences regarding Key, Paddles and Keyer</h3>
+<h3 data-number="6.3.2" id="preferences-regarding-key-paddles-and-keyer"><span class="header-section-number">6.3.2</span> Preferences regarding Key, Paddles and Keyer</h3>
 <p>These preferences control the behavior of the paddles (built in or external), primarily also the timing preferences relevant for Iambic Keying, or the use of an external straight key (set the <strong>Keyer Mode</strong> to <strong>Straight Key</strong> in order to use a straight key).</p>
 <table>
 <colgroup>
@@ -1942,9 +2199,19 @@ Vol 12
 <td>Defines how long after generating the current element (dot or dash) the paddles will be „deaf”. If it is 0%, you have to release the paddle while the last element is still „on”. If set to 87.5%, the paddles will only react to a paddle press after 7/8 of a dot length.</td>
 <td>A value between 0% and 87.5%, meaning 0/8 to 7/8 of a dot length (default is <strong>50%</strong>, i.e. half a dot length).</td>
 </tr>
+<tr>
+<td>BLT Kbd Output</td>
+<td>Defines what is being sent via Bluetooth (Bluetooth keyboard functionality). The VBand option allows the Morserino to be used as a VBand dongle (for VBand see <em>https://hamradio.solutions/vband/</em>), <strong>Decoded</strong> sends all decoded characters not only to the display, but also out via Bluetooth, and the <strong>Generic Kbd</strong> option does more or less the same as <strong>Decoded</strong>, but it sends the code for the “<strong>Enter</strong>” Key (New Line) when you key &lt;KA&gt; (new message), and for the “<strong>Backspace</strong>” key when you key &lt;HH&gt; (i.e. 8 dits). The M32 will appear as a US keyboard (QWERTY layout). <em>Bluetooth keyboard output is only active in CW Keyer mode (see also <strong>Appendix 9</strong>).</em></td>
+<td><strong>Nothing</strong> / Vband Keying / Decoded / Vband+Decoded / Generic Kbd</td>
+</tr>
+<tr>
+<td>BLT &lt;AR&gt;</td>
+<td>Only relevant in <strong>Generic Kbd</strong> mode (see <strong>BLT Kbd Output</strong> above). Determines how the &lt;AR&gt; prosign is sent over Bluetooth: as the literal character “<strong>+</strong>” or as a soft line break (Shift+Enter).</td>
+<td><strong>+</strong> / Linefeed</td>
+</tr>
 </tbody>
 </table>
-<h3 data-number="6.2.3" id="preferences-regarding-koch-character-sequence"><span class="header-section-number">6.2.3</span> Preferences regarding Koch Character Sequence</h3>
+<h3 data-number="6.3.3" id="preferences-regarding-koch-character-sequence"><span class="header-section-number">6.3.3</span> Preferences regarding Koch Character Sequence</h3>
 <p>If you follow courses by various institutions, they will follow a certain order introducing Morse code characters to you. Here you can select which order you want to follow.</p>
 <table>
 <colgroup>
@@ -1972,7 +2239,7 @@ Vol 12
 </tr>
 </tbody>
 </table>
-<h3 data-number="6.2.4" id="preferences-regarding-cw-generation"><span class="header-section-number">6.2.4</span> Preferences regarding CW Generation</h3>
+<h3 data-number="6.3.4" id="preferences-regarding-cw-generation"><span class="header-section-number">6.3.4</span> Preferences regarding CW Generation</h3>
 <p>The following preferences control how characters are generated and played randomly, or how text files are being played as Morse characters. I’d like to draw your attention to <strong>Interchar Spc</strong> and <strong>Interword Spc</strong> primarily, as through those preferences you can achieve what is otherwise known as “Farnsworth Speed” or “Wordsworth Speed”, respectively. Of course, these preferences are also relevant for the Echo Trainer!</p>
 <table>
 <colgroup>
@@ -2060,7 +2327,7 @@ Vol 12
 </tr>
 </tbody>
 </table>
-<h3 data-number="6.2.5" id="preferences-regarding-echo-trainer"><span class="header-section-number">6.2.5</span> Preferences regarding Echo Trainer</h3>
+<h3 data-number="6.3.5" id="preferences-regarding-echo-trainer"><span class="header-section-number">6.3.5</span> Preferences regarding Echo Trainer</h3>
 <p>The following preferences control the essential properties of the Echo Trainer (however, Tone Shift is also interesting for the transceiver modes).</p>
 <p>Increasing the value for “Interword Space” also increases the “grace time” after the prompt before you must begin keying your response!</p>
 <table>
@@ -2109,8 +2376,8 @@ Vol 12
 </tr>
 </tbody>
 </table>
-<h3 data-number="6.2.6" id="preferences-regarding-transmitting-and-decoding"><span class="header-section-number">6.2.6</span> Preferences regarding Transmitting and Decoding</h3>
-<p>These preferences control some functions available for transmitting (either directly through LoRa or Wifi, or through keying an external transmitter), or for decoding Morse code characters.</p>
+<h3 data-number="6.3.6" id="preferences-regarding-transmitting-decoding-and-qso-bot"><span class="header-section-number">6.3.6</span> Preferences regarding Transmitting, Decoding and QSO Bot</h3>
+<p>These preferences control some functions available for transmitting (either directly through LoRa or Wifi, or through keying an external transmitter), for decoding Morse code characters, and for the QSO Bot (see section <strong>5.5.4 QSO Bot</strong>).</p>
 <table>
 <colgroup>
 <col style="width: 33%" />
@@ -2149,6 +2416,11 @@ Vol 12
 <td>Decoded on I/O</td>
 <td>Normally, decoded CW that comes from an external source (when using any of the transceiver modes, or using the decoder to decode audio input) is played on the speaker (or headphones), but not sent to the external audio I/O port. With this preference set to „ON”, the audio is also sent to the external audio I/O port.<br> <strong>On the M32Pocket, this setting is ignored!</strong></td>
 <td>On / <strong>Off</strong></td>
+</tr>
+<tr>
+<td>Contest Type</td>
+<td>Only relevant in the QSO Bot’s <strong>Contest</strong> mode (section <strong>5.5.4 QSO Bot</strong>): which contest exchange the bot uses. <strong>CQ WW</strong> sends 5NN + the CQ zone of the bot’s callsign; <strong>WPX/Sprint</strong> sends 5NN + a serial number.</td>
+<td><strong>CQ WW</strong> / WPX/Sprint</td>
 </tr>
 </tbody>
 </table>
@@ -2209,7 +2481,7 @@ Vol 12
 <p>LoRa data packets are addressed with a so called “Sync Word” – receivers discard packets that do not show the sync word they are expecting.</p>
 <p>Morserino-32 can make use of two different sync words, thus effectively creating two different “channels” over which it can communicate. This can be used, for example, in a class room situation, to create two independent groups that do not interfere with each other.</p>
 <p>Normally M32 LoRa works with sync word 0x27 (we call it the “Standard” channel), but through the setting LoRa Channel in the preferences menu can be switched to 0x66 (called “Secondary” channel).</p>
-<p>The channels are selected through the preference <strong>Trx Channel</strong>, see section <strong>6.2.6 Preferences regarding Transmitting and Decoding</strong>.</p>
+<p>The channels are selected through the preference <strong>Trx Channel</strong>, see section <strong>6.2.6 Preferences regarding Transmitting, Decoding and QSO Bot</strong>.</p>
 <h4 class="unnumbered" id="using-different-lora-frequency-bands-andor-frequencies">Using different LoRa frequency bands and/or frequencies</h4>
 <p>By default the Morserino-32 kits are being shipped with a LoRa module that works in the 70 cm band, and as standard frequency within that band on 434.150 MHz (within the 70 cm Amateur band and within a region 1 ISM band).</p>
 <p>If for whatever reason you cannot use this frequency (maybe because of band plans, regulatory reasons etc.), you can change the frequency on the standard LoRa Module between 433.65 and 434.55 MHz in steps of 100 kHz.</p>
@@ -2323,8 +2595,13 @@ Vol 12
 </ul>
 <h2 data-number="7.9" id="appendix-9-using-the-bluetooth-keyboard-functionality"><span class="header-section-number">7.9</span> Appendix 9: Using the Bluetooth Keyboard functionality</h2>
 <p>In “CW Keyer” mode, the M32 can send the keyed Morse code as keyboard codes via Bluetooth to a computer (including cell phones and tablets).</p>
-<p>To do this, the “<strong>BLT Kbd Output</strong>” setting must be set accordingly (for more information on the available options, see section  <strong>6.2.1 General Preferences</strong>.</p>
-<p>Please note that the Morserino works like a keyboard with a US key layout – this may need to be set accordingly on the computer you are using.</p>
+<p>To do this, the “<strong>BLT Kbd Output</strong>” setting must be set accordingly (for more information on the available options, see section  <strong>6.2.2 Preferences regarding Key, Paddles and Keyer</strong>).</p>
+<div class="note">
+<p>This feature is only active in CW Keyer mode! The keyboard will only become visible on your PC, tablet, etc. once CW Keyer has been launched!</p>
+</div>
+<div class="note">
+<p>The Morserino works like a keyboard with a US key layout – this may need to be set accordingly on the computer you are using.</p>
+</div>
 <h2 data-number="7.10" id="appendix-10-list-of-common-cw-abbreviations-used-by-morserino-32"><span class="header-section-number">7.10</span> Appendix 10: List of common CW abbreviations used by Morserino-32</h2>
 <p>The list contains definitions in English and German, separated by a slash. Not all abbreviations are very common in all languages; abbreviations uncommon in English are in square brackets [].</p>
 <p><strong>A</strong></p>

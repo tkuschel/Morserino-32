@@ -43,13 +43,20 @@
 #include "MorseJSON.h"        // JSON handling for file upload and serial communication
 #include <mbedtls/base64.h>     // for base64 decoding (built into ESP32)
 
-#ifdef CONFIG_CW_GAME
+// MorseGame.h is needed even on QSO-Bot-only builds: it carries the
+// gameMode / gameCharBuffer externs that displayDecodedMorse uses to
+// route keyer input into our buffer. The header gates its game-only
+// declarations on CONFIG_CW_GAME internally.
+#if defined(CONFIG_CW_GAME) || defined(CONFIG_QSO_BOT)
 #include "MorseGame.h"
+#endif
+#ifdef CONFIG_CW_GAME
 #include "MorsePileup.h"
 #include "MorseRadioCave.h"
+#include "MorseMorsel.h"
 #endif
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 #include "MorseGameMode.h"
 #endif
 
@@ -132,7 +139,7 @@ volatile int8_t remoteFilePartSelect = -1;   // -1 = no remote selection pending
 
 boolean quickStart;                                     // should we execute menu item immediately?
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 // Reboot-magic flag — written by MorseGameMode (or any code that needs a
 // fresh heap and can't recover from fragmentation in software) before
 // ESP.restart(). Tells setup() this is a memory-clearing reboot, which
@@ -144,7 +151,7 @@ boolean quickStart;                                     // should we execute men
 // silent (no "QUICK START" splash) and we never accidentally land back
 // in WiFi Trx after a memory reboot.
 //
-// Only used on TFT/sprite-using boards (CONFIG_DISPLAYWRAPPER): the OLED
+// Only used on TFT/sprite-using boards (CONFIG_TFT): the OLED
 // boards don't allocate large sprites and never hit the OOM that motivates
 // this whole machinery.
 //
@@ -279,7 +286,7 @@ enum MORSE_TYPE {KEY_DOWN, KEY_UP };              //   State Machine Defines
 unsigned char generatorState;
 
 const char* const continueMsg4Json = "Continue with paddle";
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
 const char* const continueMsg4Disp = "Continue w/ Paddle";
 #else
 const char* const continueMsg4Disp = "Continue with paddle ";
@@ -449,7 +456,7 @@ void DEBUG (const String& s) {
 
 void setup()
 {
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
    // Detect a memory-clearing reboot (set by MorseGameMode when sprite
    // allocation fails due to heap fragmentation). One-shot — clear
    // immediately so any subsequent crash-and-restart behaves as a fresh
@@ -508,6 +515,19 @@ void setup()
 #define VEXT_ON_VALUE LOW
 #endif
 
+#ifndef VEXT_SETTLE_MS
+#define VEXT_SETTLE_MS 100     // ms; let the Vext (TFT panel supply) rail settle before the ST7789 reset/init (defensive; Phase G/M4)
+#endif
+
+// Phase G/M4 boot-flicker fix: keep the TFT backlight OFF from panel init until
+// the first themed clear, so the boot-time MorseGameMode::warmup() sprite push —
+// which can briefly show its uninitialised buffer (internal RAM; this board has no
+// PSRAM) as "garbage" on the left, different on every cold boot — is never lit. The
+// clear overwrites that push while the panel is still dark. Set to 0 to revert.
+#ifndef BL_GATE_AT_BOOT
+#define BL_GATE_AT_BOOT 1
+#endif
+
 #ifdef PIN_VEXT
 pinMode(PIN_VEXT, OUTPUT);
 #endif
@@ -540,24 +560,35 @@ pinMode(modeButtonPin, INPUT);
 #ifdef PIN_VEXT
 // pinMode(PIN_VEXT, OUTPUT); // done earlier
 digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
+delay(VEXT_SETTLE_MS);   // let the panel supply rail settle before the ST7789 reset/init (defensive; Phase G/M4)
 #endif
 //DEBUG("Init display");
   // init display
   MorsePreferences::readScreenPref();
+#if defined(CONFIG_TFT) && BL_GATE_AT_BOOT
+  // Pre-seed brightness to 0 BEFORE display.init(): LovyanGFX's init_impl() ends
+  // with setBrightness(_brightness) (default 127), which would otherwise light
+  // the panel during init. We need it to stay dark not just through init but
+  // through the warmup() push below, until the first themed clear — so pre-seed
+  // 0 here and light the panel only after that clear. (Phase G/M4)
+  MorseOutput::setBrightness(0);
+#endif
   MorseOutput::initDisplay();
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   MorseOutput::setTheme(MorsePreferences::pliste[posTheme].value);  // set the theme
 #endif
 
-  MorseOutput::setBrightness(MorsePreferences::oledBrightness);
-  MorseOutput::clearDisplay();
-  scrollTop = MorseOutput::getScrollTop();
-
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   // Force LovyanGFX's first-time SPI/DMA allocation to happen at boot
   // rather than inside the first game session (where it would land
   // adjacent to the game sprite and prevent the sprite-region from
   // merging back when the sprite is freed).
+  //
+  // NOTE (Phase G/M4): MorseGameMode::warmup() pushes a full-screen sprite whose
+  // freshly-allocated buffer (internal RAM — there is no PSRAM) can momentarily
+  // contain uninitialised data — the "different garbage every cold boot" on the
+  // left of the screen. With the boot backlight gate it runs here while the panel
+  // is still DARK, and the themed clear below overwrites that push before lit.
   MorseGameMode::warmup();
 
 #ifdef CONFIG_CW_GAME
@@ -565,8 +596,21 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
   // first use during gameplay doesn't allocate small persistent buffers
   // next to the game sprite.
   MorseRadioCave::warmup();
+  MorseMorsel::warmup();
 #endif
 #endif
+
+#if defined(CONFIG_TFT) && BL_GATE_AT_BOOT
+  // Backlight has been held off since Vext. Paint the themed background FIRST
+  // (overwriting the warmup push above), THEN light the panel — so the first lit
+  // frame shows the clean background, never the warmup's garbage. (Phase G/M4)
+  MorseOutput::clearDisplay();
+  MorseOutput::setBrightness(MorsePreferences::oledBrightness);
+#else
+  MorseOutput::setBrightness(MorsePreferences::oledBrightness);
+  MorseOutput::clearDisplay();
+#endif
+  scrollTop = MorseOutput::getScrollTop();
 
   // Cycle WiFi+ESP-NOW once at boot so ESP-IDF's lazy persistent
   // allocations (~16 KB of netif / event loop / task structures) happen
@@ -622,7 +666,7 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
   Buttons::volButton.debounceTime   = 11;   // Debounce timer in ms
   Buttons::volButton.multiclickTime = 220;  // Time limit for multi clicks
   Buttons::volButton.longClickTime  = 350; // time until "held-down clicks" register
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
 #endif
   
@@ -655,6 +699,24 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
   adcAttachPin(audioInPin);
 #endif
 
+  // Factory reset: the serial command "PUT device/reset/defaults" sets this flag
+  // and reboots, because the actual reset has to happen *here* — before
+  // readPreferences() overwrites pliste[] with the stored values. resetDefaults()
+  // restores the compile-time defaults only while pliste[] still holds them, which
+  // is the case at this point. (The hardware-config menu's reset works for the same
+  // reason: it too runs before readPreferences().)
+  {
+    Preferences resetPref;
+    resetPref.begin("morserino", false);
+    if (resetPref.getUChar("factoryReset", 0)) {
+        resetPref.remove("factoryReset");
+        resetPref.end();
+        MorsePreferences::resetDefaults();
+    } else {
+        resetPref.end();
+    }
+  }
+
   // read preferences from non-volatile storage
   // if version cannot be read, we have a new ESP32 and need to write the preferences first
 
@@ -662,7 +724,7 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
   MorsePreferences::readFilePartData();
   koch.setup();
 
-  #ifdef CONFIG_DISPLAYWRAPPER
+  #ifdef CONFIG_TFT
   MorseOutput::setTheme(MorsePreferences::pliste[posTheme].value);  // set the theme
   #endif
 
@@ -672,7 +734,7 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
   initSensors();
 
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   // On a memory-clearing reboot: hijack quickStart to auto-resume the
   // saved menu pointer, regardless of the user's normal quickStart
   // preference. This makes the reboot silent from the user's perspective —
@@ -736,7 +798,7 @@ digitalWrite(PIN_VEXT, VEXT_ON_VALUE);
         file.close();
     }
  
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
     // Skip the boot splash on a memory-clearing reboot — the user just
     // exited WiFi Trx a heartbeat ago, they don't want to see the logo
     // and version screen again. (memoryReboot is only set on sprite-using
@@ -802,10 +864,11 @@ void displayStartUp(uint16_t volt) {
   s.reserve(18);
   s = PROJECTNAME;
   s += " ";
-  MorseOutput::clearDisplay();
-  #ifdef CONFIG_DISPLAYWRAPPER
-  MorseOutput::dispM32Logo();
-  delay(4800); // was 1800, show it a little bit longer
+  #ifdef CONFIG_TFT
+  MorseOutput::dispM32Logo();    // theme-independent white-on-black splash (clears to black itself)
+  delay(4800); // was 1800
+  MorseOutput::clearDisplay();   // restore the theme background for the version screen
+  #else
   MorseOutput::clearDisplay();
   #endif
 
@@ -865,6 +928,12 @@ void displayStartUp(uint16_t volt) {
     else
         brd = "unknown M32 board";
 #endif
+
+  // firmware version string for the M32 protocol "GET device" response
+  // (major.minor, plus .patch when non-zero — mirrors the splash-screen format)
+  vsn = String(VERSION_MAJOR) + "." + String(VERSION_MINOR);
+  if (VERSION_PATCH != 0)
+      vsn += "." + String(VERSION_PATCH);
 
 //DEBUG("Display done, delay");
 delay(1800);
@@ -1021,6 +1090,8 @@ if (morseState == morseKeyer &&
   // check buttons
     Buttons::modeButton.Update();
     Buttons::volButton.Update();
+    if (Buttons::modeButton.clicks || Buttons::volButton.clicks)
+        MorseOutput::resetTOT();        // explicit TOT reset on any button activity
 
     switch (Buttons::volButton.clicks) {
       case 1:   if (encoderState == scrollMode) {
@@ -1113,6 +1184,7 @@ if (morseState == morseKeyer &&
      if ((t = checkEncoder())) {
         //DEBUG("t: " + String(t));
         MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);         /// click
+        MorseOutput::resetTOT();                                         // explicit TOT reset on encoder activity
         switch (encoderState) {
           case speedSettingMode:
                                   changeSpeed(t);
@@ -1499,6 +1571,8 @@ boolean checkPaddles() {
 // update the paddle latches in keyerControl
 void updatePaddleLatch(boolean dit, boolean dah)
 {
+    if (dit || dah)
+      MorseOutput::resetTOT();          // explicit TOT reset on paddle activity (was implicit via screen updates)
     if (dit)
       keyerControl |= DIT_L;
     if (dah)
@@ -1716,13 +1790,23 @@ static uint8_t getContinentMask(uint8_t prefValue) {
     return (prefValue <= 6) ? masks[prefValue] : CONT_ALL;
 }
  
+// Continent (CONT_* bitmask) and CQ zone (1-40) of the prefix chosen by
+// the most recent getRandomCall(). The QSO Bot reads these to pick a
+// summit/park reference on the same continent as the bot's generated
+// callsign, and to give a realistic CQ-zone exchange in CQ WW. Default
+// to CONT_ALL / 0 for the fallback (no-matching-prefix) path.
+uint8_t lastGeneratedCallContinent = CONT_ALL;
+uint8_t lastGeneratedCallCqZone    = 0;
+
 String getRandomCall(int maxLength) {
     static char call[16];
     int pos = 0;
     uint8_t contMask;
+    uint8_t contPref = MorsePreferences::pliste[posCallContinent].value;
+    bool vkzlOnly = (contPref == 7);
     // Get filter settings
     if (maxLength != 1)     /// means the max call length is not 3 
-        contMask = getContinentMask(MorsePreferences::pliste[posCallContinent].value);
+        contMask = vkzlOnly ? CONT_OC : getContinentMask(contPref);
     else                    /// maxLength == 1 means we want a 3-character call; these only exist in NA and EU, so we include those two.
         contMask = CONT_ALL;
     bool commonOnly  = (MorsePreferences::pliste[posCallCommon].value == 1);
@@ -1743,11 +1827,14 @@ String getRandomCall(int maxLength) {
         if (!(cont & contMask)) continue;
         if (weight < minWeight) continue;
         if ((int)strlen(pfxBuf) > maxPfxLen) continue;
+        if (vkzlOnly && strncmp(pfxBuf, "VK", 2) != 0 && strncmp(pfxBuf, "ZL", 2) != 0) continue;
         totalWeight += weight;
     }
  
     // Fallback if no matching prefixes (e.g., AN with common filter)
     if (totalWeight == 0) {
+        lastGeneratedCallContinent = CONT_ALL;
+        lastGeneratedCallCqZone    = 0;
         // Generate old-style random call
         call[0] = 'a' + random(0, 26);
         call[1] = '0' + random(0, 10);
@@ -1768,6 +1855,7 @@ String getRandomCall(int maxLength) {
         if (!(cont & contMask)) continue;
         if (weight < minWeight) continue;
         if ((int)strlen(pfxBuf) > maxPfxLen) continue;
+        if (vkzlOnly && strncmp(pfxBuf, "VK", 2) != 0 && strncmp(pfxBuf, "ZL", 2) != 0) continue;
         cumulative += weight;
         if (cumulative > pick) {
             chosen = i;
@@ -1777,7 +1865,9 @@ String getRandomCall(int maxLength) {
  
     // Read chosen prefix
     readPrefix(chosen, pfxBuf, &cont, &weight);
- 
+    lastGeneratedCallContinent = cont;
+    lastGeneratedCallCqZone    = pgm_read_byte(&prefixTable[chosen].cqZone);
+
     // --- Build the call sign ---
  
     // Copy prefix (lowercase for consistency with CW generator)
@@ -2281,10 +2371,12 @@ void fetchNewWord() {
 
 
 void displayDecodedMorse(String symbol, boolean keyed) {
-#ifdef CONFIG_CW_GAME
-    // In game mode, redirect the decoded character to the game buffer
-    // instead of writing to the scroll display
-
+#if defined(CONFIG_CW_GAME) || defined(CONFIG_QSO_BOT)
+    // In game mode (Pocket TFT games), redirect the decoded character
+    // to the game buffer and bypass the scroll display entirely — the
+    // games draw their own canvas. gameMode + gameCharBuffer are
+    // declared unconditionally in MorseGame.{h,cpp} so this works on
+    // the classic build too.
     if (gameMode) {
         String encoded = symbol;
         encodeProSigns(encoded);
@@ -2292,6 +2384,21 @@ void displayDecodedMorse(String symbol, boolean keyed) {
             gameCharBuffer = encoded.charAt(0);
         }
         return;
+    }
+#endif
+#ifdef CONFIG_QSO_BOT
+    // In QSO-Bot mode, ALSO copy the decoded character into the game
+    // buffer (so the bot's matcher sees it), but DO NOT bypass the
+    // scroll display — the bot uses the same status-line + scroll
+    // buffer layout as the CW Keyer / transceiver modes, and the user
+    // should see what they keyed naturally.
+    if (qsoBotMode) {
+        String encoded = symbol;
+        encodeProSigns(encoded);
+        if (encoded.length() >= 1) {
+            gameCharBuffer = encoded.charAt(0);
+        }
+        // fall through to the standard scroll display
     }
 #endif
     // Check for "eeee" error sequence    
@@ -2302,7 +2409,17 @@ void displayDecodedMorse(String symbol, boolean keyed) {
     if (MorsePreferences::pliste[posOutputCase].value) {
         tmp_str.toUpperCase();
     }
-    MorseOutput::printToScroll(REGULAR, tmp_str, true, encoderState == scrollMode);
+    // M6: keyed + decoded characters are CW transcription. Weight follows the
+    // device convention "incoming CW = bold, your own keying = regular":
+    // decoded-from-audio (Decoder, external Trx receive) is incoming, so it is
+    // bold; your keying stays regular. On TFT it also carries the theme Morse
+    // colour.
+#ifdef CONFIG_TFT
+    FONT_ATTRIB cwStyle = keyed ? MORSE_REGULAR : MORSE_BOLD;
+#else
+    FONT_ATTRIB cwStyle = keyed ? REGULAR : BOLD;
+#endif
+    MorseOutput::printToScroll(cwStyle, tmp_str, true, encoderState == scrollMode);
     SerialOutMorse(tmp_str, keyed ? 0b001 : 0b010);
  
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
@@ -2332,6 +2449,12 @@ void displayDecodedMorse(String symbol, boolean keyed) {
 //// the next function is used to display GENERATED characters
 
 void displayGeneratedMorse(FONT_ATTRIB style, const String& s) {
+#ifdef CONFIG_TFT
+    // M6: this is CW transcription — render it in the theme's Morse colour while
+    // keeping the incoming(REGULAR)/outgoing(BOLD) weight. OLED stays mono.
+    if (style == REGULAR)   style = MORSE_REGULAR;
+    else if (style == BOLD) style = MORSE_BOLD;
+#endif
     if (MorsePreferences::pliste[posOutputCase].value) {
         String upper = s;
         upper.toUpperCase();
@@ -2441,7 +2564,7 @@ void echoTrainerEval() {
 
     if (echoResponse == echoTrainerWord) {
       echoTrainerState = SEND_WORD;
-      displayGeneratedMorse(BOLD,  "OK");
+      displayGeneratedMorse(OK_RESULT,  "OK");
       if (MorsePreferences::pliste[posEchoConf].value) {
           MorseOutput::soundSignalOK();
       }
@@ -2455,7 +2578,7 @@ void echoTrainerEval() {
       echoTrainerState = REPEAT_WORD;
       if (generatorMode != KOCH_LEARN || echoResponse != "") {
           ++errCounter;
-          displayGeneratedMorse(BOLD, "ERR");
+          displayGeneratedMorse(ERR_RESULT, "ERR");
           if (MorsePreferences::pliste[posEchoConf].value) {
               MorseOutput::soundSignalERR();
           }
@@ -2481,29 +2604,47 @@ void updateTimings() {
   effWpm = 60000 / (31 * ditLength + 4 * interCharacterSpace + interWordSpace );  ///  effective wpm with lengthened spaces = Farnsworth speed
 }
 
-void changeSpeed( int t) {
+// --- Speed/volume value-core vs. classic wrapper (Phase F / L6) ------------
+// changeSpeedValue / changeVolumeValue carry the *value* logic only: mutate the
+// setting, update derived timings / the codec, and report over the serial
+// protocol. They draw nothing. The classic wrappers changeSpeed / changeVolume
+// add the classic status-line update (and, for speed, the charCounter NVS-write
+// debounce reset). Interactive modes that own their own HUD — the games (H3) —
+// call the *Value cores directly, so they render speed/volume themselves
+// instead of scribbling over the classic status line. loop(), the echo trainer
+// and the QSO Bot keep calling the wrappers, so their behavior is unchanged.
+
+void changeSpeedValue( int t) {
   MorsePreferences::wpm += t;
   MorsePreferences::wpm = constrain(MorsePreferences::wpm, MorsePreferences::wpmMin, MorsePreferences::wpmMax);
   updateTimings();
-  if (m32state != menu_loop)
-      displayCWspeed();                     // update display of CW speed
-  charCounter = 0;                                    // reset character counter
   if (m32protocol)
       MorseJSON::jsonControl("speed", MorsePreferences::wpm, MorsePreferences::wpmMin, MorsePreferences::wpmMax, false);
 }
 
+void changeSpeed( int t) {
+  changeSpeedValue(t);
+  charCounter = 0;                                    // reset character counter (NVS-write debounce)
+  if (m32state != menu_loop)
+      displayCWspeed();                     // update display of CW speed
+}
 
-void changeVolume( int t) {
+
+void changeVolumeValue( int t) {
     MorsePreferences::sidetoneVolume += t+1;
     MorsePreferences::sidetoneVolume = constrain(MorsePreferences::sidetoneVolume, 1, 20) -1;
     //DEBUG(String(MorsePreferences::sidetoneVolume));
     #ifdef CONFIG_TLV320AIC3100
       MorseOutput::soundSetVolume(MorsePreferences::sidetoneVolume);
     #endif
+    if (m32protocol)
+      MorseJSON::jsonControl("volume", MorsePreferences::sidetoneVolume, MorsePreferences::volumeMin, MorsePreferences::volumeMax, false);
+}
+
+void changeVolume( int t) {
+    changeVolumeValue(t);
     if (m32state != menu_loop)
         MorseOutput::displayVolume((encoderState == volumeSettingMode ? false : true), MorsePreferences::sidetoneVolume);      // sidetone volume;
-    if (m32protocol)
-      MorseJSON::jsonControl("volume", MorsePreferences::sidetoneVolume, MorsePreferences::volumeMax, MorsePreferences::volumeMin, false);
 }
 
 void keyTransmitter(boolean noTx) {
@@ -2901,6 +3042,27 @@ void onWifiReceive(AsyncUDPPacket packet) {
 
 void onEspnowRecv(const uint8_t* mac, const uint8_t* data, uint8_t len, signed int rssi, bool broadcast)
 {
+    // Morsel multiplayer: intercept its own protocol packets (magic "MSL").
+    #ifdef CONFIG_CW_GAME
+    if (MorseMorsel::morselNetMode && broadcast && len >= 5 &&
+        data[0] == 'M' && data[1] == 'S' && data[2] == 'L') {
+        MorseMorsel::mslNetOnRecv(mac, data, len);
+        return;
+    }
+    #endif
+
+    // Fight the Pileup multiplayer: intercept its plain-text /ftp/ packets
+    // (beacons, attacks, ...). Must run BEFORE the MOPP branch below, or a
+    // /ftp/ packet would be mis-decoded as CW elements. Callback context:
+    // hand off to a copy-and-return ring filler, do not parse here.
+    #ifdef CONFIG_CW_GAME
+    if (pileupMode && broadcast && len >= FTP_MAGIC_LEN &&
+        memcmp(data, FTP_MAGIC, FTP_MAGIC_LEN) == 0) {
+        MorsePileup::ftpNetOnRecv(mac, data, len);
+        return;
+    }
+    #endif
+
     // Pileup game: intercept and decode MOPP packet to text
     #ifdef CONFIG_CW_GAME
     if (pileupMode && len > 2 && broadcast) {
@@ -3656,7 +3818,7 @@ void m32Get(String type, String token, String value) {                    /// GE
         if (token == "speed")
           MorseJSON::jsonControl("speed", MorsePreferences::wpm, MorsePreferences::wpmMin, MorsePreferences::wpmMax, true);
         else if (token == "volume")
-          MorseJSON::jsonControl("volume", MorsePreferences::sidetoneVolume, MorsePreferences::volumeMax, MorsePreferences::volumeMin, true);
+          MorseJSON::jsonControl("volume", MorsePreferences::sidetoneVolume, MorsePreferences::volumeMin, MorsePreferences::volumeMax, true);
         else /// invalid argument {
           MorseJSON::jsonError("INVALID ARGUMENT");
     }
@@ -3775,8 +3937,20 @@ void m32Put(String type, String token, String value) {                    /// PU
             MorseJSON::jsonError("INVALID Value " + value);
       }
       else if (token == "reset" && value == "defaults") {
-        MorsePreferences::resetDefaults();
+        // resetDefaults() only restores the compile-time defaults when it runs
+        // *before* readPreferences() has overwritten pliste[] with the stored
+        // values — i.e. early in setup(). At full runtime pliste[] already holds
+        // the current values, so a direct call would merely re-persist them. So
+        // we set a boot-surviving NVS flag and reboot; setup() performs the real
+        // reset before readPreferences() (see the "factoryReset" check there).
+        Preferences resetPref;
+        resetPref.begin("morserino", false);
+        resetPref.putUChar("factoryReset", 1);
+        resetPref.end();
         MorseJSON::jsonOK();
+        Serial.flush();          // ensure the OK reaches the host before we reboot
+        delay(100);
+        ESP.restart();
       }
       else MorseJSON::jsonError("INVALID NAME " + token);
     }
@@ -3936,10 +4110,15 @@ void m32Put(String type, String token, String value) {                    /// PU
         if (uploadActive) {
           String name = String(uploadFile.path());   // ← was uploadFile.name()
           uploadFile.close();
+          // If we uploaded player.txt, reset all per-part word pointers
+          // before scanning — a fresh file invalidates prior progress.
+          if (name == "/player.txt" || name == "player.txt") {
+            for (int i = 0; i < MAX_FILE_PARTS; i++)
+              MorsePreferences::fileParts[i].wordPointer = 0;
+          }
           MorsePreferences::scanFileParts();
           MorsePreferences::writeFilePartData();
           uploadActive = false;
-          // If we uploaded player.txt, reset the word pointer
           if (name == "/player.txt" || name == "player.txt") {
             MorsePreferences::fileWordPointer = 0;
             MorsePreferences::writeWordPointer();

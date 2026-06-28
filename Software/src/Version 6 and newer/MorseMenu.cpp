@@ -17,7 +17,7 @@
 #include "MorseDecoder.h"
 #include "MorseJSON.h"
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 #include "MorseGameMode.h"
 
 // Defined in m32_v6.ino at global scope. True for the FIRST menu_()
@@ -25,37 +25,17 @@
 // failure. We use it to suppress the "QUICK START" overlay so the
 // post-reboot resume into the game looks silent.
 extern bool memoryReboot;
-
-// Tracks whether the user has already entered a WiFi-using mode in
-// this boot session. QuickEspNow's internal state can't survive multiple
-// WiFi.mode(STA) → WIFI_OFF cycles cleanly — the second begin() crashes
-// inside QuickEspNow::addPeer (esp_now_get_peer returns NOT_FOUND, which
-// the library promotes to abort()). Workaround: detect the 2nd-or-later
-// entry and trigger a memory-clearing reboot first; the auto-resume
-// drops the user back into the same menu item with fresh ESP-NOW state
-// and a defragmented heap.
-//
-// Single owner of the flag: it's set at the end of setupESPNow()/
-// setupWifi() — i.e. only after a WiFi mode actually came up. Callers
-// check via rebootIfWifiAlreadyUsed() BEFORE showing any "Start Wifi
-// Trx..."-style splash, so the splash shows exactly once per session
-// (once before the reboot would be wasted, since the user only sees
-// "Clearing memory..." anyway).
-static bool wifiUsedThisSession = false;
-
-static void rebootIfWifiAlreadyUsed() {
-    if (wifiUsedThisSession) {
-        MorseGameMode::triggerMemoryClearingReboot();
-    }
-}
-#else
-static inline void rebootIfWifiAlreadyUsed() {}
 #endif
 
 #ifdef CONFIG_CW_GAME
   #include "MorseGame.h"
   #include "MorsePileup.h"
   #include "MorseRadioCave.h"
+  #include "MorseMorsel.h"
+#endif
+
+#ifdef CONFIG_QSO_BOT
+  #include "MorseQsoBot.h"
 #endif
 
 #ifdef LORA_RADIOLIB
@@ -125,11 +105,15 @@ const char* const menuText[menuN]  = {
 #endif
     "WiFi Trx",
     "iCW/Ext Trx",
+#ifdef CONFIG_QSO_BOT
+    "QSO Bot",
+        "SOTA/POTA", "Standard", "Contest",
+#endif
 
   "CW Decoder",
 #ifdef CONFIG_CW_GAME
 "Games",
-    "Morse Invaders", "Fight Pileup", "Radio Cave",
+    "Morse Invaders", "Fight Pileup", "Radio Cave", "Morsel",
 #endif
 
   "WiFi Functions",
@@ -178,21 +162,43 @@ const uint8_t menuNav [menuN] [5] = {                   // { level, left, right,
   {2,_kochEchoWords,_kochEchoAdaptive,_kochEcho,0},     // 28 koch echo mixed  -e
   {2,_kochEchoMixed,_kochEchoRand,_kochEcho,0},         // 29 koch echo adaptive  -e
 #ifdef LORA_DISABLED
-  {0,_koch,_decode,_dummy,_trxWifi},                     // transceiver (no LoRa, first child is WiFi)
-  {1,_trxIcw,_trxIcw,_trx,0},                           // wifi trx  -e  (2-item wrap)
-  {1,_trxWifi,_trxWifi,_trx,0},                          // icw/ext trx  -e  (2-item wrap)
+  #ifdef CONFIG_QSO_BOT
+    {0,_koch,_decode,_dummy,_trxWifi},                  // _trx
+    {1,_qsoBot,_trxIcw,_trx,0},                         // _trxWifi  (left wraps via _qsoBot)
+    {1,_trxWifi,_qsoBot,_trx,0},                        // _trxIcw   (right wraps to _qsoBot)
+    {1,_trxIcw,_trxWifi,_trx,_qsoSotaPota},             // _qsoBot   (level 1; descends to _qsoSotaPota)
+    {2,_qsoContest,_qsoStandard,_qsoBot,0},             // _qsoSotaPota
+    {2,_qsoSotaPota,_qsoContest,_qsoBot,0},             // _qsoStandard
+    {2,_qsoStandard,_qsoSotaPota,_qsoBot,0},            // _qsoContest
+  #else
+    {0,_koch,_decode,_dummy,_trxWifi},                  // _trx (no LoRa, first child is WiFi)
+    {1,_trxIcw,_trxIcw,_trx,0},                         // _trxWifi  (2-item wrap)
+    {1,_trxWifi,_trxWifi,_trx,0},                       // _trxIcw   (2-item wrap)
+  #endif
 #else
-  {0,_koch,_decode,_dummy,_trxLora},                     // transceiver (has LoRa)
-  {1,_trxIcw,_trxWifi,_trx,0},                           // lora trx  -e
-  {1,_trxLora,_trxIcw,_trx,0},                           // wifi trx  -e
-  {1,_trxWifi,_trxLora,_trx,0},                          // icw/ext trx  -e
+  #ifdef CONFIG_QSO_BOT
+    {0,_koch,_decode,_dummy,_trxLora},                  // _trx
+    {1,_qsoBot,_trxWifi,_trx,0},                        // _trxLora  (left wraps via _qsoBot)
+    {1,_trxLora,_trxIcw,_trx,0},                        // _trxWifi
+    {1,_trxWifi,_qsoBot,_trx,0},                        // _trxIcw   (right wraps to _qsoBot)
+    {1,_trxIcw,_trxLora,_trx,_qsoSotaPota},             // _qsoBot   (level 1; descends to _qsoSotaPota)
+    {2,_qsoContest,_qsoStandard,_qsoBot,0},             // _qsoSotaPota
+    {2,_qsoSotaPota,_qsoContest,_qsoBot,0},             // _qsoStandard
+    {2,_qsoStandard,_qsoSotaPota,_qsoBot,0},            // _qsoContest
+  #else
+    {0,_koch,_decode,_dummy,_trxLora},                  // _trx (has LoRa)
+    {1,_trxIcw,_trxWifi,_trx,0},                        // _trxLora
+    {1,_trxLora,_trxIcw,_trx,0},                        // _trxWifi
+    {1,_trxWifi,_trxLora,_trx,0},                       // _trxIcw
+  #endif
 #endif
 #ifdef CONFIG_CW_GAME
   {0,_trx,_games,_dummy,0},                               // decoder  -e
   {0,_decode,_wifi,_dummy,_morseInvaders},                 // games
-  {1,_radioCave,_fightPileup,_games,0},                     // morse invaders  -e
+  {1,_morsel,_fightPileup,_games,0},                        // morse invaders  -e
   {1,_morseInvaders,_radioCave,_games,0},                    // fight pileup  -e
-  {1,_fightPileup,_morseInvaders,_games,0},                  // radio cave  -e
+  {1,_fightPileup,_morsel,_games,0},                         // radio cave  -e
+  {1,_radioCave,_morseInvaders,_games,0},                    // morsel  -e
   {0,_games,_goToSleep,_dummy,_wifi_mac},                   // WiFi
 #else
   {0,_trx,_wifi,_dummy,0},                                // decoder  -e
@@ -278,7 +284,7 @@ void MorseMenu::menu_() {
             quickStart = false;
             command = 1;
             delay(250);
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
             // After a memory-clearing reboot, auto-resume into the saved
             // menu item silently — the user just clicked it a second ago,
             // they don't need a "QUICK START" splash announcing the same
@@ -490,12 +496,6 @@ boolean MorseMenu::menuExec() {       // return true if we should  leave menu af
                     skipWords(wcount);
                 }
      startGenerator:
-                // If we'll be using WiFi for CW transmit, reboot first
-                // when WiFi was already used this session (see _trxWifi
-                // case for rationale). Done before the splash so we
-                // don't show the Generator splash twice across the reboot.
-                if (MorsePreferences::pliste[posLoraCwTransmit].value == 1)
-                  rebootIfWifiAlreadyUsed();
                 startFirst = true;
                 firstTime = true;
                 morseState = morseGenerator;
@@ -628,12 +628,6 @@ boolean MorseMenu::menuExec() {       // return true if we should  leave menu af
                 break;
 #endif
       case  _trxWifi: // Wifi Transceiver
-                // Reboot first if WiFi was already used this session
-                // (QuickEspNow can't survive multiple cycles cleanly).
-                // Done here, BEFORE any "Start Wifi Trx..." splash, so the
-                // splash isn't shown twice across the reboot. Flag is set
-                // by setupESPNow()/setupWifi() themselves, not here.
-                rebootIfWifiAlreadyUsed();
                 generatorMode = RANDOMS;  // to reset potential KOCH_LEARN
                 MorsePreferences::setCurrentOptions(MorsePreferences::wifiTrxOptions, MorsePreferences::wifiTrxOptionsSize);
                 morseState = wifiTrx;
@@ -671,8 +665,34 @@ boolean MorseMenu::menuExec() {       // return true if we should  leave menu af
                   MorseJSON::jsonCreate("message", "Start CW Transceiver", "");
                 clearPaddleLatches();
                 goto setupDecoder;
+#ifdef CONFIG_QSO_BOT
+      // QSO Bot — simulated CW QSO partner. Uses the same safety story as
+      // the games (morseQsoBot is local-sidetone-only; never appears in
+      // the LoRa/WiFi/external-TX gates in m32_v6.ino, so RF stays off).
+      case _qsoSotaPota:
+      case _qsoStandard:
+      case _qsoContest:
+                MorsePreferences::setCurrentOptions(MorsePreferences::qsoBotOptions,
+                                                    MorsePreferences::qsoBotOptionsSize);
+                morseState = morseQsoBot;
+                Buttons::modeButton.clicks = 0;
+                Buttons::volButton.clicks  = 0;
+                MorseQsoBot::run((menuNo) MorsePreferences::menuPtr);
+                m32state = menu_loop;
+                return false;
+#endif
 #ifdef CONFIG_CW_GAME
+      // Games manage their own CW and must not inherit a transmit mode
+      // (loraTrx/wifiTrx) from a previous menu session, or the shared keyer
+      // (doPaddleIambic) would try to send keyed characters over
+      // LoRa/WiFi/ESP-NOW — which, after that subsystem was torn down on
+      // menu entry, dereferences freed state and crashes. The dedicated
+      // morseGame state gives local-sidetone-only keying: the keyer's
+      // transmit gates (== loraTrx/wifiTrx) and keyOut()'s external-TX
+      // gates (== morseKeyer/morseTrx/morseGenerator) all exclude it, so a
+      // game never transmits nor keys a real rig. Reset by the next menu mode.
       case _morseInvaders:
+                morseState = morseGame;
                 MorseGame::run();
                 m32state = menu_loop;
                 // Clear both buttons: a long-press exit leaves clicks == -1, which
@@ -681,18 +701,27 @@ boolean MorseMenu::menuExec() {       // return true if we should  leave menu af
                 Buttons::volButton.clicks  = 0;
                 return false;
       case _fightPileup:
+                morseState = morseGame;
                 MorsePileup::run();
                 m32state = menu_loop;
                 Buttons::modeButton.clicks = 0;
                 Buttons::volButton.clicks  = 0;
                 return false;
       case _radioCave:
+                morseState = morseGame;
                 MorseRadioCave::run();
                 m32state = menu_loop;
                 Buttons::modeButton.clicks = 0;
                 Buttons::volButton.clicks  = 0;
                 return false;
-#endif  
+      case _morsel:
+                morseState = morseGame;
+                MorseMorsel::run();
+                m32state = menu_loop;
+                Buttons::modeButton.clicks = 0;
+                Buttons::volButton.clicks  = 0;
+                return false;
+#endif
       case  _decode: /// decoder
                 MorsePreferences::setCurrentOptions(MorsePreferences::decoderOptions, MorsePreferences::decoderOptionsSize);
                 morseState = morseDecoder;
@@ -756,11 +785,6 @@ boolean MorseMenu::setupWifi() {
       if (err != 1)                       // if that fails too, use broadcast
         peerIP.fromString("255.255.255.255");
   }
-#ifdef CONFIG_DISPLAYWRAPPER
-  // Mark WiFi as used so the next call to rebootIfWifiAlreadyUsed()
-  // triggers a memory-clearing reboot before re-entering a WiFi mode.
-  wifiUsedThisSession = true;
-#endif
   return true;
 }
 
@@ -787,11 +811,6 @@ void MorseMenu::setupESPNow() {
       quickEspNow.begin (MorsePreferences::pliste[posLoraChannel].value ? ESPNOW_CH_ALT : ESPNOW_CH); // If you don't use an AP channel needs to be specified
       delay(100);
       //DEBUG("setupESPNow has been performed.");
-#ifdef CONFIG_DISPLAYWRAPPER
-      // Mark WiFi as used so the next call to rebootIfWifiAlreadyUsed()
-      // triggers a memory-clearing reboot before re-entering a WiFi mode.
-      wifiUsedThisSession = true;
-#endif
   }
   
 void MorseMenu::cleanupScreen() {
@@ -825,6 +844,8 @@ boolean MorseMenu::isRemotelyExecutable(uint8_t ptr) {
       case _games:            // nor the games that depend on visual clues
       case _morseInvaders:
       case _fightPileup:
+      case _radioCave:
+      case _morsel:
 #endif
       return false;
     }

@@ -17,7 +17,7 @@
 
 #include "Arduino.h"
 
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
   #define NoOfLines 15
   #define NoOfVisibleLines 3
 #else
@@ -27,11 +27,12 @@
 
 enum FONT_ATTRIB
 {
-    VOID, REGULAR, BOLD, INVERSE_REGULAR, INVERSE_BOLD
+    VOID, REGULAR, BOLD, INVERSE_REGULAR, INVERSE_BOLD, MORSE_REGULAR, MORSE_BOLD, OK_RESULT, ERR_RESULT
 };
 
-const FONT_ATTRIB FONT_INCOMING = REGULAR;
-const FONT_ATTRIB FONT_OUTGOING = BOLD;
+// CW transcription weight convention: BOLD = CW the operator must copy (echo
+// prompt, received Trx, decoded audio, QSO Bot transmission); REGULAR = the
+// operator's own keying and the passive CW Generator read-along.
 
 extern uint8_t scrollTop;
 
@@ -89,7 +90,7 @@ namespace MorseOutput
   void resetPowerpathDisplay();
 #endif
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   void dispM32Logo();
   void setTheme (uint8_t theme);
   void testFontLayout();

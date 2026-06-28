@@ -12,6 +12,7 @@
 // Always defined (even without CONFIG_CW_GAME)
 bool gameMode = false;
 char gameCharBuffer = 0;
+bool qsoBotMode = false;
 
 
 #ifdef CONFIG_CW_GAME
@@ -155,9 +156,18 @@ static void updateSound() {
 // High scores (NVS persistence)
 //=============================================================================
 
+// Storage-format version for the m32game high-score table. Bump when the
+// GameHighScore layout or key scheme changes. An *absent* "ver" key is treated
+// as the current format, so high scores written before versioning are kept.
+static const uint8_t GAME_HS_VERSION = 1;
+
 static void loadHighScores() {
     Preferences pref;
     pref.begin("m32game", true);
+    if (pref.getUChar("ver", GAME_HS_VERSION) != GAME_HS_VERSION) {
+        pref.end();
+        return;                          // future/incompatible format -> start fresh
+    }
     for (int i = 0; i < GAME_HIGH_SCORES; i++) {
         char key[12];
         snprintf(key, sizeof(key), "hs%d_s", i);
@@ -186,6 +196,7 @@ static void saveHighScores() {
         snprintf(key, sizeof(key), "hs%d_w", i);
         pref.putUChar(key, highScores[i].wpm);
     }
+    pref.putUChar("ver", GAME_HS_VERSION);
     pref.end();
 }
 
@@ -250,6 +261,7 @@ static char   pollKeyedChar();
 static int    findMatchingInvader(char c);
 static void   destroyInvader(int idx);
 static uint16_t getCharColor(char c);
+static uint16_t getCharBorderColor(char c);
 static void   getDisplayStr(char c, char* buf);
 
 static void   drawGameField();
@@ -314,6 +326,19 @@ static uint16_t getCharColor(char c) {
     return GC_LETTERS;
 }
 
+// Dimmed outline colour for an invader, matching its fill category. Under
+// the 8-bpp palette the old runtime brightening (color565 on the fill's
+// RGB components) can't be done on an index, so the four results are
+// precomputed as their own palette entries (PAL_INV_*_B).
+static uint16_t getCharBorderColor(char c) {
+    if (c >= '0' && c <= '9') return PAL_INV_NUMBERS_B;
+    if (c == '.' || c == ',' || c == '?' || c == '/' || c == '-' || c == '=' || c == ':')
+        return PAL_INV_PUNCT_B;
+    if (c == 'S' || c == 'A' || c == 'N' || c == 'K' || c == 'E' || c == 'B' || c == '+')
+        return PAL_INV_PROSIGN_B;
+    return PAL_INV_LETTERS_B;
+}
+
 static void getDisplayStr(char c, char* buf) {
     bool upper = (MorsePreferences::pliste[posOutputCase].value != 0);
     switch (c) {
@@ -335,15 +360,9 @@ static void getDisplayStr(char c, char* buf) {
 
 static char chooseCharacter() {
     int pool = game.kochPoolSize;
-    if (pool < 2) pool = 2;
-    int idx;
-    int r = random(100);
-    if (r < 40 && pool >= 3)
-        idx = random(pool * 2 / 3, pool);
-    else if (r < 75 && pool >= 3)
-        idx = random(pool / 3, pool * 2 / 3);
-    else
-        idx = random(0, max(1, pool / 3));
+    if (pool < 1) pool = 1; // Safety floor to prevent division/range errors if the pool is empty
+    
+    int idx = random(0, pool); 
     return game.kochSequence[idx];
 }
 
@@ -380,6 +399,7 @@ static void spawnInvader() {
     inv.y = GAME_FIELD_TOP;
     inv.speed = game.baseSpeed + random(0, 30) / 100.0f;
     inv.color = getCharColor(inv.character);
+    inv.borderColor = getCharBorderColor(inv.character);
     inv.active = true;
     inv.explodeFrame = 0;
 }
@@ -459,11 +479,7 @@ static void pushFrame() { MorseGameMode::pushFrame(); }
 
 static void drawCentredText(int y, const char* text, uint16_t color,
                             const lgfx::IFont* font) {
-    if (font) canvas->setFont(font);
-    canvas->setTextColor(color, GC_BG);
-    canvas->setTextDatum(lgfx::top_center);
-    canvas->drawString(text, GAME_SCREEN_W / 2, y);
-    canvas->setTextDatum(lgfx::top_left);
+    MorseGameMode::drawCentred(canvas, GAME_SCREEN_W / 2, y, text, color, GC_BG, font);
 }
 
 static void drawInvader(GameInvader& inv) {
@@ -489,11 +505,7 @@ static void drawInvader(GameInvader& inv) {
     if (!inv.active) return;
 
     canvas->fillRoundRect(x, y, GAME_INVADER_W, GAME_INVADER_H, 4, inv.color);
-    canvas->drawRoundRect(x, y, GAME_INVADER_W, GAME_INVADER_H, 4,
-        canvas->color565(
-            ((inv.color >> 11) & 0x1F) * 4,
-            ((inv.color >> 5) & 0x3F) * 2,
-            (inv.color & 0x1F) * 4));
+    canvas->drawRoundRect(x, y, GAME_INVADER_W, GAME_INVADER_H, 4, inv.borderColor);
 
     char dispBuf[4];
     getDisplayStr(inv.character, dispBuf);
@@ -539,7 +551,7 @@ static void drawInvader(GameInvader& inv) {
 static void drawGameField() {
     for (int i = 0; i <= GAME_NUM_LANES; i++) {
         int x = GAME_LANE_MARGIN + i * GAME_LANE_W;
-        canvas->drawFastVLine(x, GAME_FIELD_TOP, GAME_FIELD_BOTTOM - GAME_FIELD_TOP, 0x2104);
+        canvas->drawFastVLine(x, GAME_FIELD_TOP, GAME_FIELD_BOTTOM - GAME_FIELD_TOP, GC_BAND);
     }
     for (int i = 0; i < GAME_MAX_INVADERS; i++)
         if (game.invaders[i].active || game.invaders[i].explodeFrame > 0)
@@ -567,33 +579,33 @@ static void drawHUD() {
 }
 
 static void drawKeyingZone() {
-    canvas->fillRect(0, GAME_KEYING_Y, GAME_SCREEN_W, GAME_SCREEN_H - GAME_KEYING_Y, 0x2104);
+    canvas->fillRect(0, GAME_KEYING_Y, GAME_SCREEN_W, GAME_SCREEN_H - GAME_KEYING_Y, GC_BAND);
 
     canvas->setFont(&fonts::Font0);
     char infoBuf[16];
     if (encoderIsVolume) {
         snprintf(infoBuf, sizeof(infoBuf), "Vol:%d <", MorsePreferences::sidetoneVolume);
-        canvas->setTextColor(GC_LEVELUP, 0x2104);
+        canvas->setTextColor(GC_LEVELUP, GC_BAND);
     } else {
         snprintf(infoBuf, sizeof(infoBuf), "%d wpm <", game.wpm);
-        canvas->setTextColor(GC_HUD_TEXT, 0x2104);
+        canvas->setTextColor(GC_HUD_TEXT, GC_BAND);
     }
     canvas->drawString(infoBuf, 4, GAME_KEYING_Y + 4);
 
     // Show the other value (without <) on the second line
     if (encoderIsVolume) {
         snprintf(infoBuf, sizeof(infoBuf), "%d wpm", game.wpm);
-        canvas->setTextColor(GC_HUD_TEXT, 0x2104);
+        canvas->setTextColor(GC_HUD_TEXT, GC_BAND);
     } else {
         snprintf(infoBuf, sizeof(infoBuf), "Vol:%d", MorsePreferences::sidetoneVolume);
-        canvas->setTextColor(GC_HUD_TEXT, 0x2104);
+        canvas->setTextColor(GC_HUD_TEXT, GC_BAND);
     }
     canvas->drawString(infoBuf, 4, GAME_KEYING_Y + 18);
 
     if (game.streak >= 5) {
         char streakBuf[12];
         snprintf(streakBuf, sizeof(streakBuf), "x%d", game.streak);
-        canvas->setTextColor(GC_LEVELUP, 0x2104);
+        canvas->setTextColor(GC_LEVELUP, GC_BAND);
         canvas->setTextDatum(lgfx::top_right);
         canvas->drawString(streakBuf, GAME_SCREEN_W - 4, GAME_KEYING_Y + 4);
         canvas->setTextDatum(lgfx::top_left);
@@ -603,7 +615,7 @@ static void drawKeyingZone() {
         char dispBuf[4];
         getDisplayStr(lastDecodedChar, dispBuf);
         canvas->setFont(&fonts::FreeSansBold12pt7b);
-        canvas->setTextColor(GC_HUD_TEXT, 0x2104);
+        canvas->setTextColor(GC_HUD_TEXT, GC_BAND);
         canvas->setTextDatum(lgfx::middle_center);
         canvas->drawString(dispBuf, GAME_SCREEN_W / 2, GAME_KEYING_Y + 21);
         canvas->setTextDatum(lgfx::top_left);
@@ -652,7 +664,7 @@ static void stateMenu() {
     canvas->setFont(&fonts::Font0);
     // Footer lines shifted up to fit inside the trimmed 304-px sprite
     // (was 286 / 300 when GAME_SCREEN_H was 320).
-    drawCentredText(270, "Touch:start FN:spd/lvl/vol", GC_HUD_TEXT);
+    drawCentredText(270, "Key:start FN:spd/lvl/vol", GC_HUD_TEXT);
     drawCentredText(284, "Long press: exit", GC_HUD_TEXT);
 
     pushFrame();
@@ -668,12 +680,10 @@ static void stateMenu() {
                 if (game.startSubLevel < 1) game.startSubLevel = 1;
                 if (game.startSubLevel > 50) game.startSubLevel = 50;
             } else if (menuEncMode == 1) {
-                game.wpm = constrain(game.wpm + enc, 5, 60);
-                MorsePreferences::wpm = game.wpm;
-                updateTimings();
+                changeSpeedValue(enc);                 // value-only: clamp + timings + protocol, no classic draw
+                game.wpm = MorsePreferences::wpm;       // mirror back into the game's own model
             } else {
-                int newVol = constrain((int)MorsePreferences::sidetoneVolume + enc, 0, 20);
-                MorsePreferences::sidetoneVolume = newVol;
+                changeVolumeValue(enc);                 // value-only: clamp + Pocket codec + protocol, no classic draw
             }
             MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
             // Redraw all three lines
@@ -721,7 +731,6 @@ static void stateMenu() {
             drawCentredText(160, buf, GC_LEVELUP);
             pushFrame();
         }
-        if (Buttons::volButton.clicks == -1) { game.state = GAME_EXIT; return; }
 
         serialEvent();
         checkShutDown(false);
@@ -826,13 +835,11 @@ static void statePlaying() {
         int enc = checkEncoder();
         if (enc) {
             if (encoderIsVolume) {
-                int newVol = constrain((int)MorsePreferences::sidetoneVolume + enc, 0, 20);
-                MorsePreferences::sidetoneVolume = newVol;
-                MorseOutput::pwmClick(newVol);
+                changeVolumeValue(enc);                 // value-only: clamp + Pocket codec + protocol, no classic draw
+                MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
             } else {
-                game.wpm = constrain(game.wpm + enc, 5, 60);
-                MorsePreferences::wpm = game.wpm;
-                updateTimings();
+                changeSpeedValue(enc);                  // value-only: clamp + timings + protocol, no classic draw
+                game.wpm = MorsePreferences::wpm;        // mirror back into the game's own model
             }
         }
 
@@ -846,9 +853,6 @@ static void statePlaying() {
         if (Buttons::volButton.clicks == 1) {
             encoderIsVolume = !encoderIsVolume;
             MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
-        }
-        if (Buttons::volButton.clicks == -1) {
-            game.lives = 0; game.state = GAME_OVER; leavePlayingState(); return;
         }
 
         // Spawn
@@ -907,7 +911,6 @@ static void statePaused() {
             case -1: game.state = GAME_EXIT;    return;
         }
         Buttons::volButton.Update();
-        if (Buttons::volButton.clicks == -1) { game.state = GAME_EXIT; return; }
         serialEvent();
         checkShutDown(false);
         delay(20);
@@ -1013,7 +1016,6 @@ static void stateGameOver() {
             case -1: game.state = GAME_EXIT; return;
         }
         Buttons::volButton.Update();
-        if (Buttons::volButton.clicks == -1) { game.state = GAME_EXIT; return; }
         updateSound();
         serialEvent();
         delay(20);
@@ -1026,11 +1028,11 @@ static void stateGameOver() {
 //=============================================================================
 
 void MorseGame::run() {
-    canvas = MorseGameMode::enterPortrait(false);
+    canvas = MorseGameMode::enterPortrait(false, 8);
     if (!canvas) return;
     // Determine character rotation from preference
     // posInvaderOrient: 0 = game native (no rotation), 1 = reading orientation
-    #ifdef CONFIG_DISPLAYWRAPPER
+    #ifdef CONFIG_TFT
     if (MorsePreferences::pliste[posInvaderOrient].value == 1) {
         charRotation = MorsePreferences::leftHanded ? -90 : 90;
     } else {
@@ -1045,11 +1047,15 @@ void MorseGame::run() {
         tileSprite = new LGFX_Sprite(canvas);
         if (tileSprite) {
             tileSprite->setPsram(false);
-            tileSprite->setColorDepth(16);
+            tileSprite->setColorDepth(8);
             if (!tileSprite->createSprite(GAME_INVADER_H, GAME_INVADER_W)) {
                 delete tileSprite;
                 tileSprite = nullptr;
                 charRotation = 0;  // fall back to no rotation
+            } else {
+                // Share the main sprite's palette so index values blit
+                // unchanged between tileSprite and canvas (pushRotateZoom).
+                MorseGameMode::applyGamePalette(tileSprite);
             }
         }
     }

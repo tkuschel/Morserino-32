@@ -52,6 +52,7 @@ struct FtpDifficulty {
     uint16_t spawnMin;          // min ms between spawns (at high streak)
     uint8_t  initialCallers;    // callers on screen at start
     uint8_t  dropsPerLife;      // dropped callers before losing a life
+    uint8_t  playsBeforeReveal; // CW plays before the callsign text is shown
 };
 
 // ---- Game states ----
@@ -68,7 +69,8 @@ enum FtpGameState : uint8_t {
 // ---- Pileup caller (bot or from network attack) ----
 struct FtpCaller {
     char     call[FTP_MAX_CALL_LEN + 1];
-    unsigned long spawnTime;
+    unsigned long spawnTime;        // defend-window start (reset when it becomes active)
+    unsigned long queuedSince;      // arrival time (queue-patience ref; frozen during attacks)
     bool     active;
     bool     fromNetwork;           // true = attack from another player
     uint8_t  senderIdx;             // index into players[] if fromNetwork
@@ -77,6 +79,7 @@ struct FtpCaller {
 
 // ---- Player roster entry ----
 struct FtpPlayer {
+    uint8_t  mac[6];                // roster key (idents may collide across devices)
     char     ident[FTP_MAX_IDENT_LEN + 1];
     uint8_t  lives;
     uint32_t score;
@@ -127,11 +130,21 @@ struct FtpGameData {
     // Timers
     unsigned long lastBeaconSent;
     unsigned long lastActivity;
+
+    // Multiplayer result
+    char     winnerIdent[FTP_MAX_IDENT_LEN + 1];  // announced winner ("" = none yet)
+    bool     iAmWinner;                            // true only if THIS device won
 };
 
 // ---- Public interface ----
 namespace MorsePileup {
     void run();
+
+    // Called from onEspnowRecv() for broadcast /ftp/ packets while pileupMode
+    // is set. Runs in the ESP-NOW RX callback context: it only copies the
+    // packet into a ring buffer and returns; the lobby/game loop drains and
+    // parses it (see checkReceivedMessages()).
+    void ftpNetOnRecv(const uint8_t* mac, const uint8_t* data, uint8_t len);
 }
 
 #endif  // CONFIG_CW_GAME

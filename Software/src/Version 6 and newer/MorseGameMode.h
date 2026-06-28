@@ -6,12 +6,12 @@
  *  Morse Invaders or Fight the Pileup. This module allocates the sprite fresh on game entry and
  *  frees it on exit, so the heap stays clean during menu time.
  *
- *  Only built when CONFIG_DISPLAYWRAPPER is defined (M32 Pocket / TFT boards).
+ *  Only built when CONFIG_TFT is defined (M32 Pocket / TFT boards).
  *****************************************************************************************************************************/
 
 #pragma once
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 
 #include <LovyanGFX.hpp>
 
@@ -36,11 +36,22 @@ namespace MorseGameMode {
   // setup() then auto-resumes into the same menu item with a defragmented
   // heap. Callers may still keep a defensive `if (!canvas) return;` for
   // robustness, but it should never fire.
-  LGFX_Sprite *enterPortrait(bool leftHanded);
+  //
+  // colorDepth selects the sprite's bits-per-pixel: 16 (RGB565, the
+  // default) or 8 (indexed palette — see GamePalette.h). An 8-bpp sprite
+  // is half the size; games that opt in must draw using PAL_* palette
+  // indices instead of RGB565 values.
+  LGFX_Sprite *enterPortrait(bool leftHanded, uint8_t colorDepth = 16);
 
   // Allocate a fresh landscape-orientation game sprite. Same semantics as
   // enterPortrait — reboots on allocation failure.
-  LGFX_Sprite *enterLandscape(bool leftHanded);
+  LGFX_Sprite *enterLandscape(bool leftHanded, uint8_t colorDepth = 16);
+
+  // Load the shared 8-bpp game palette (GamePalette.h) into a
+  // caller-owned sprite. Used by games that allocate their own secondary
+  // 8-bpp sprite (e.g. Invaders' rotated-text tile) and need it to share
+  // the main sprite's palette so blits between the two stay colour-correct.
+  void applyGamePalette(LGFX_Sprite *s);
 
   // Push the sprite to the panel.
   void pushFrame();
@@ -52,6 +63,14 @@ namespace MorseGameMode {
 
   // Currently-allocated sprite, or nullptr if not in game mode.
   LGFX_Sprite *getSprite();
+
+  // Centre a single line of text horizontally at (centreX, y) on a game
+  // sprite, with the given fg/bg colours and optional font. Shared helper —
+  // was duplicated verbatim as drawCentredText() in MorseGame.cpp and
+  // MorsePileup.cpp; callers pass their own centre-x and background so it
+  // stays game-agnostic.
+  void drawCentred(LGFX_Sprite *s, int centreX, int y, const char *text,
+                   uint16_t color, uint16_t bg, const lgfx::IFont *font = nullptr);
 
   // Force a memory-clearing reboot. Saves MorsePreferences::menuPtr to RTC,
   // shows a brief "Clearing memory..." overlay, then ESP.restart()s. After
@@ -66,4 +85,4 @@ namespace MorseGameMode {
 
 } // namespace MorseGameMode
 
-#endif // CONFIG_DISPLAYWRAPPER
+#endif // CONFIG_TFT

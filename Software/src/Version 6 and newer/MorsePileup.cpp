@@ -18,15 +18,18 @@ volatile bool pileupRxReady = false;
 #include "MorseOutput.h"
 #include "MorsePreferences.h"
 #include "MorseMenu.h"
+#include "MorseCwEngine.h"      // shared non-blocking CW player
 #include "morsedefs.h"
 #include "ClickButton.h"
 #include "DisplayWrapper.h"
 #include <LovyanGFX.hpp>
 #include <ESP32Encoder.h>
 #include <Preferences.h>
+#include <WiFi.h>
 
 extern int checkEncoder();
 extern void serialEvent();
+extern void checkShutDown(boolean);    // m32_v6.ino — inactivity time-out -> deep sleep
 extern boolean checkPaddles();
 extern boolean doPaddleIambic(boolean, boolean);
 extern boolean leftKey, rightKey;
@@ -51,6 +54,8 @@ extern String getRandomCall(int maxLength);
 extern String generateCWword(const String& symbols);
 
 static LGFX_Sprite* canvas = nullptr;
+static bool encoderIsVolume = false;   // FN (vol button) toggles encoder WPM <-> volume
+                                       // (shared by the code-challenge and pileup screens)
 static FtpGameData   ftp;
 
 static const char ENTRY_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/";
@@ -66,23 +71,28 @@ static const int  CODE_CHARS_LEN = 36;
 // (see MorseGameMode.cpp) to leave heap headroom for ESP-NOW/BT/WiFi.
 // The bottom 16 px of the panel are not drawn; UI must lay out within FTP_H.
 #define FTP_H  304
-#define FTP_BG     0x0841
-#define FTP_TEXT   0xFFFF
-#define FTP_ACCENT 0x07FF
-#define FTP_OK     0x07E0
-#define FTP_WARN   0xF800
-#define FTP_TITLE  0xFFE0
-#define FTP_DIM    0x7BEF
-#define FTP_INPUT  0x001F      // blue for input text
-#define FTP_ATTACK 0xF81F      // magenta for attack prompt
+// The game sprite is 8-bpp indexed (see GamePalette.h): these names map to
+// shared palette indices, not RGB565 values. The palette entries hold the
+// exact RGB565 colours used before, so the on-screen result is unchanged.
+#include "GamePalette.h"
+#define FTP_BG     PAL_BG        // 0x0841
+#define FTP_TEXT   PAL_WHITE     // 0xFFFF
+#define FTP_ACCENT PAL_CYAN      // 0x07FF
+#define FTP_OK     PAL_GREEN     // 0x07E0
+#define FTP_WARN   PAL_RED       // 0xF800
+#define FTP_TITLE  PAL_YELLOW    // 0xFFE0
+#define FTP_DIM    PAL_GREY      // 0x7BEF
+#define FTP_INPUT  PAL_BLUE      // 0x001F blue for input text
+#define FTP_ATTACK PAL_MAGENTA   // 0xF81F magenta for attack prompt
+#define FTP_BAND   PAL_DARKGREY  // 0x2104 dark grey status/footer band
 
 // Difficulty presets
-//                              label       timeout  spawnMax spawnMin initCal dropsPerLife
+//                              label       timeout  spawnMax spawnMin initCal dropsPerLife playsReveal
 static const FtpDifficulty difficulties[FTP_NUM_DIFFICULTIES] = {
-    { "EASY",      45000,  12000,    5000,    1,      5 },
-    { "NORMAL",    30000,   8000,    3000,    1,      4 },
-    { "HARD",      20000,   5000,    2000,    2,      3 },
-    { "EXPERT",    12000,   3500,    1500,    3,      2 },
+    { "EASY",      45000,  12000,    5000,    1,      5,      3 },
+    { "NORMAL",    30000,   8000,    3000,    1,      4,      3 },
+    { "HARD",      20000,   5000,    2000,    2,      3,      2 },
+    { "EXPERT",    12000,   3500,    1500,    3,      2,      1 },
 };
 
 static const FtpDifficulty& diff() { return difficulties[ftp.difficulty]; }
@@ -90,8 +100,8 @@ static const FtpDifficulty& diff() { return difficulties[ftp.difficulty]; }
 // Word-gap timeout: 7 dit-lengths of silence → submit input
 #define FTP_WORDGAP_FACTOR 7
 
-// CW playback: number of plays before showing text hint
-#define FTP_PLAYS_BEFORE_REVEAL 3
+// CW playback: plays before the callsign is shown is per-difficulty now
+// (FtpDifficulty::playsBeforeReveal — fewer on harder levels).
 
 // Attack CW pitch offset (semitones * ratio from sidetone)
 // We use a pitch ~4 semitones below the sidetone
@@ -128,8 +138,13 @@ static void   stateGameOver();
 static void   sendBeacon();
 static void   checkReceivedMessages();
 static void   updateRoster();
-static int    findPlayer(const char* ident);
-static int    addPlayer(const char* ident);
+static void   ftpHandleMessage(const uint8_t* mac, char* line);
+static const uint8_t* ftpMyMac();
+static void   ftpMacToHex(const uint8_t* mac, char* out);
+static bool   ftpHexToMac(const char* s, uint8_t* mac);
+static int    ftpPickVictim();
+static void   sendAttack(int victimIdx, const char* call);
+static void   spawnNetworkAttack(const char* call, uint8_t senderIdx);
 static int    countActivePlayers();
 static const char* getPlayerIdent();
 static void   pushFrame();
@@ -231,126 +246,42 @@ static void playSoundLevelUp() {
 
 //=== Non-blocking CW player for attack playback ===
 //
-// Plays a CW element string ("1201200120...") at a different pitch from the
-// sidetone. Uses pwmTone/pwmNoTone directly — pauses automatically when the
-// keyer is active (keyerState != IDLE_STATE) so the player's sidetone takes
-// priority.
-
-struct FtpCwPlayer {
-    char     elements[128];     // dit/dah/space element string from generateCWword
-    int      pos;               // current position in elements
-    int      len;               // total length
-    bool     playing;           // currently active
-    bool     toneOn;            // is our tone currently sounding
-    bool     paused;            // paused because keyer is active
-    unsigned long timer;        // next state transition time
-    int      pitch;             // our playback pitch (Hz)
-    uint8_t  playCount;         // how many times we've played through
-};
-
-static FtpCwPlayer cwPlayer;
+// Thin wrappers around MorseCwEngine. Pileup's call-site convention:
+// pitch derived from the player's pitch pref (offset by
+// FTP_ATTACK_PITCH_RATIO so the attack is distinguishable from the
+// sidetone); WPM = 0 means the engine uses live keyer timings
+// (ditLength/dahLength/interCharacterSpace), so the attack tracks the
+// player's speed changes mid-game. The challenge loops with an inter-loop
+// gap, and the engine settles for 2 dits after the mute predicate
+// releases — both preserve the original cwPlayerUpdate behaviour.
 
 static int getAttackPitch() {
     int basePitch = MorseOutput::notes[MorsePreferences::pliste[posPitch].value];
     return basePitch * FTP_ATTACK_PITCH_RATIO_NUM / FTP_ATTACK_PITCH_RATIO_DEN;
 }
 
+// Mute predicate: silence playback whenever the user is typing a response
+// or a Pileup sound effect is sounding. (keyerState != IDLE is handled
+// by the engine itself.)
+static bool pileupExtraMute() {
+    return (ftp.inputPos > 0) || ftpSoundPlaying;
+}
+
 static void cwPlayerStart(const char* callsign) {
-    // Convert callsign to lowercase for generateCWword
     String lower = callsign;
-    lower.toLowerCase();
-    String cw = generateCWword(lower);
-
-    strncpy(cwPlayer.elements, cw.c_str(), sizeof(cwPlayer.elements) - 1);
-    cwPlayer.elements[sizeof(cwPlayer.elements) - 1] = '\0';
-    cwPlayer.len = strlen(cwPlayer.elements);
-    cwPlayer.pos = 0;
-    cwPlayer.playing = true;
-    cwPlayer.toneOn = false;
-    cwPlayer.paused = false;
-    cwPlayer.timer = millis();
-    cwPlayer.pitch = getAttackPitch();
-    cwPlayer.playCount = 0;
+    lower.toLowerCase();                                 // generateCWword expects lowercase
+    MorseCwEngine::PlayOpts opts = {
+        /*pitchHz       */ (uint16_t) getAttackPitch(),
+        /*wpm           */ 0,                            // use live ditLength globals
+        /*loop          */ true,
+        /*resumeGapDits */ 2,
+        /*extraMute     */ pileupExtraMute,
+    };
+    MorseCwEngine::playStart(lower, opts);
 }
 
-static void cwPlayerStop() {
-    if (cwPlayer.toneOn) {
-        MorseOutput::pwmNoTone(MorsePreferences::sidetoneVolume);
-        cwPlayer.toneOn = false;
-    }
-    cwPlayer.playing = false;
-}
-
-// Call from tight loop. Non-blocking.
-static void cwPlayerUpdate() {
-    if (!cwPlayer.playing) return;
-
-    // Mute while:
-    // - keyer is producing a dit/dah (keyerState != IDLE_STATE)
-    // - player has started typing a response (inputPos > 0)
-    // - sound effects are playing
-    bool shouldMute = (keyerState != IDLE_STATE) ||
-                      (ftp.inputPos > 0) ||
-                      ftpSoundPlaying;
-
-    if (shouldMute) {
-        if (cwPlayer.toneOn) {
-            // Stop our tone ONCE when transitioning to muted state
-            MorseOutput::pwmNoTone(MorsePreferences::sidetoneVolume);
-            cwPlayer.toneOn = false;
-        }
-        cwPlayer.paused = true;
-        cwPlayer.timer = millis() + 100;
-        return;
-    }
-
-    // Resume from pause — add a gap so tones don't collide
-    if (cwPlayer.paused) {
-        cwPlayer.paused = false;
-        cwPlayer.timer = millis() + ditLength * 2;  // comfortable gap
-        return;
-    }
-
-    if (millis() < cwPlayer.timer) return;  // waiting
-
-    // If tone is on, turn it off (end of dit/dah)
-    if (cwPlayer.toneOn) {
-        MorseOutput::pwmNoTone(MorsePreferences::sidetoneVolume);
-        cwPlayer.toneOn = false;
-        cwPlayer.timer = millis() + ditLength - 7;  // inter-element space, compensate for pwmNoTone delay
-        return;
-    }
-
-    // Advance to next element
-    if (cwPlayer.pos >= cwPlayer.len) {
-        // Finished one play-through
-        cwPlayer.playCount++;
-        cwPlayer.pos = 0;
-        // Inter-word gap before replay
-        cwPlayer.timer = millis() + interWordSpace + ditLength * 3;
-        return;
-    }
-
-    char elem = cwPlayer.elements[cwPlayer.pos++];
-
-    switch (elem) {
-        case '1':  // dit
-            MorseOutput::pwmTone(cwPlayer.pitch, MorsePreferences::sidetoneVolume, false);
-            cwPlayer.toneOn = true;
-            cwPlayer.timer = millis() + ditLength - 7;  // compensate for pwmTone delay
-            break;
-        case '2':  // dah
-            MorseOutput::pwmTone(cwPlayer.pitch, MorsePreferences::sidetoneVolume, false);
-            cwPlayer.toneOn = true;
-            cwPlayer.timer = millis() + dahLength - 7;  // compensate for pwmTone delay
-            break;
-        case '0':  // inter-character space (3 dit-lengths total, 1 already from inter-element)
-            cwPlayer.timer = millis() + interCharacterSpace;
-            break;
-        default:
-            break;
-    }
-}
+static void cwPlayerStop()    { MorseCwEngine::playStop(); }
+static void cwPlayerUpdate()  { MorseCwEngine::playTick(); }
 
 
 //=== Drawing helpers ===
@@ -361,11 +292,7 @@ static void pushFrame() {
 
 static void drawCentredText(int y, const char* text, uint16_t color,
                             const lgfx::IFont* font) {
-    if (font) canvas->setFont(font);
-    canvas->setTextColor(color, FTP_BG);
-    canvas->setTextDatum(lgfx::top_center);
-    canvas->drawString(text, FTP_W / 2, y);
-    canvas->setTextDatum(lgfx::top_left);
+    MorseGameMode::drawCentred(canvas, FTP_W / 2, y, text, color, FTP_BG, font);
 }
 
 static void drawFlash() {
@@ -400,35 +327,237 @@ static const char* getPlayerIdent() {
     return ftp.useCallsign ? ftp.playerCall : ftp.playerName;
 }
 
-//=== Networking stubs — real networking in Phase 3 ===
+//=== Networking — plain-text /ftp/ packets over ESP-NOW broadcast ===
+//
+// Wire format (Option A from the handoff): human-readable, pipe-delimited
+// ASCII so it is trivially parseable and debuggable. The RX *transport* is a
+// lock-free-ish ring filled by the ESP-NOW callback and drained by the lobby
+// loop; ftpHandleMessage() parses each drained line and updates the roster.
+//
+//   /ftp/B|<ident>|<lives>|<score>|<inPileup>    Beacon (every 5 s)
 
-static void sendBeacon() { ftp.lastBeaconSent = millis(); }
-static void checkReceivedMessages() {}
+#define FTP_RX_RING   8
+#define FTP_RX_MAX    80          // keep packets well under the 250 B ESP-NOW cap
 
-//=== Player roster ===
+// Producer = ESP-NOW RX callback (ftpNetOnRecv); consumer = lobby/game loop.
+// The sender MAC travels with the payload — the roster is keyed by MAC.
+struct FtpRx { uint8_t mac[6]; uint8_t len; char d[FTP_RX_MAX]; };
+static volatile FtpRx   ftpRxRing[FTP_RX_RING];
+static volatile uint8_t ftpRxHead = 0, ftpRxTail = 0;
 
-static int findPlayer(const char* ident) {
-    for (int i = 0; i < FTP_MAX_PLAYERS; i++)
-        if (ftp.players[i].active && strcmp(ftp.players[i].ident, ident) == 0) return i;
+// RX callback context — do the minimum: copy bytes, advance head, return.
+// No parsing, no String, no Serial here (constraint #1 / ISR safety).
+void MorsePileup::ftpNetOnRecv(const uint8_t* mac, const uint8_t* data, uint8_t len) {
+    uint8_t h = ftpRxHead;
+    uint8_t nxt = (h + 1) % FTP_RX_RING;
+    if (nxt == ftpRxTail) return;                       // ring full: drop
+    memcpy((void*)ftpRxRing[h].mac, mac, 6);
+    uint8_t n = (len < FTP_RX_MAX) ? len : (FTP_RX_MAX - 1);
+    memcpy((void*)ftpRxRing[h].d, data, n);
+    ftpRxRing[h].d[n] = '\0';
+    ftpRxRing[h].len = n;
+    ftpRxHead = nxt;
+}
+
+// Broadcast a beacon. Called from the lobby idle frame every FTP_BEACON_INTERVAL.
+static void sendBeacon() {
+    ftp.lastBeaconSent = millis();
+    char buf[FTP_RX_MAX];
+    int n = snprintf(buf, sizeof(buf), "%sB|%s|%u|%lu|%d",
+                     FTP_MAGIC, getPlayerIdent(),
+                     (unsigned)ftp.lives, (unsigned long)ftp.score,
+                     (ftp.state == FTP_PILEUP) ? 1 : 0);
+    if (n > 0)
+        quickEspNow.send(ESPNOW_BROADCAST_ADDRESS, (uint8_t*)buf, (size_t)n);
+}
+
+// This device's own STA MAC (the address peers see as the packet source).
+static const uint8_t* ftpMyMac() {
+    static uint8_t mac[6];
+    static bool valid = false;
+    if (!valid) { WiFi.macAddress(mac); valid = true; }
+    return mac;
+}
+
+static void ftpMacToHex(const uint8_t* mac, char* out) {   // out: >= 13 bytes
+    static const char* H = "0123456789ABCDEF";
+    for (int i = 0; i < 6; i++) {
+        out[i * 2]     = H[(mac[i] >> 4) & 0x0F];
+        out[i * 2 + 1] = H[mac[i] & 0x0F];
+    }
+    out[12] = '\0';
+}
+
+static int ftpHexNib(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     return -1;
 }
 
-static int addPlayer(const char* ident) {
-    for (int i = 0; i < FTP_MAX_PLAYERS; i++) {
-        if (!ftp.players[i].active) {
-            strncpy(ftp.players[i].ident, ident, FTP_MAX_IDENT_LEN);
-            ftp.players[i].ident[FTP_MAX_IDENT_LEN] = '\0';
-            ftp.players[i].active = true;
-            ftp.players[i].inPileup = false;
-            ftp.players[i].eliminated = false;
-            ftp.players[i].lastBeacon = millis();
-            ftp.players[i].lives = 3;
-            ftp.players[i].score = 0;
-            ftp.playerCount++;
-            return i;
-        }
+static bool ftpHexToMac(const char* s, uint8_t* mac) {
+    for (int i = 0; i < 6; i++) {
+        int hi = ftpHexNib(s[i * 2]), lo = ftpHexNib(s[i * 2 + 1]);
+        if (hi < 0 || lo < 0) return false;
+        mac[i] = (uint8_t)((hi << 4) | lo);
     }
-    return -1;
+    return true;
+}
+
+// Pick a random active, non-eliminated peer to attack; -1 if there are none.
+static int ftpPickVictim() {
+    int elig[FTP_MAX_PLAYERS], n = 0;
+    for (int i = 0; i < FTP_MAX_PLAYERS; i++)
+        if (ftp.players[i].active && !ftp.players[i].eliminated) elig[n++] = i;
+    if (n == 0) return -1;
+    return elig[random(n)];
+}
+
+// Broadcast an attack addressed (by MAC) to one peer: /ftp/A|from|toMac|call
+static void sendAttack(int victimIdx, const char* call) {
+    if (victimIdx < 0 || victimIdx >= FTP_MAX_PLAYERS) return;
+    char macHex[13];
+    ftpMacToHex(ftp.players[victimIdx].mac, macHex);
+    char buf[FTP_RX_MAX];
+    int n = snprintf(buf, sizeof(buf), "%sA|%s|%s|%s",
+                     FTP_MAGIC, getPlayerIdent(), macHex, call);
+    if (n > 0)
+        quickEspNow.send(ESPNOW_BROADCAST_ADDRESS, (uint8_t*)buf, (size_t)n);
+}
+
+// Broadcast that we are out, so peers can mark us eliminated instantly.
+static void sendEliminated() {
+    char buf[FTP_RX_MAX];
+    int n = snprintf(buf, sizeof(buf), "%sX|%s", FTP_MAGIC, getPlayerIdent());
+    if (n > 0)
+        quickEspNow.send(ESPNOW_BROADCAST_ADDRESS, (uint8_t*)buf, (size_t)n);
+}
+
+// Broadcast that we are the last one standing (re-sent from game over for
+// reliability — packets can drop).
+static void sendWinner() {
+    char buf[FTP_RX_MAX];
+    int n = snprintf(buf, sizeof(buf), "%sW|%s|%lu", FTP_MAGIC, getPlayerIdent(),
+                     (unsigned long)ftp.score);
+    if (n > 0)
+        quickEspNow.send(ESPNOW_BROADCAST_ADDRESS, (uint8_t*)buf, (size_t)n);
+}
+
+// Sole survivor? Alive, MP, at least one competitor existed, and every
+// competitor (a peer that is in the pileup or already eliminated) is out.
+// A peer still sitting in the lobby (inPileup == false, not eliminated) does
+// not count, so it can't deadlock the result.
+static bool ftpIsLastStanding() {
+    if (ftp.singlePlayer || ftp.lives == 0) return false;
+    int competitors = 0, alive = 0;
+    for (int i = 0; i < FTP_MAX_PLAYERS; i++) {
+        if (!ftp.players[i].active) continue;
+        if (!ftp.players[i].inPileup && !ftp.players[i].eliminated) continue;
+        competitors++;
+        if (!ftp.players[i].eliminated) alive++;
+    }
+    return competitors > 0 && alive == 0;
+}
+
+// Drain the RX ring on an idle lobby frame and dispatch each line.
+static void checkReceivedMessages() {
+    while (ftpRxTail != ftpRxHead) {
+        uint8_t t = ftpRxTail;
+        uint8_t len = ftpRxRing[t].len;
+        if (len >= FTP_RX_MAX) len = FTP_RX_MAX - 1;
+        char    line[FTP_RX_MAX];
+        uint8_t mac[6];
+        memcpy(line, (const void*)ftpRxRing[t].d, len);
+        line[len] = '\0';
+        memcpy(mac, (const void*)ftpRxRing[t].mac, 6);
+        ftpRxTail = (t + 1) % FTP_RX_RING;
+        ftpHandleMessage(mac, line);
+    }
+}
+
+//=== Player roster (keyed by MAC) ===
+
+// Split s in place on delim, preserving empty fields. Returns field count.
+static int ftpSplit(char* s, char delim, char** out, int maxOut) {
+    int n = 0;
+    if (maxOut <= 0) return 0;
+    out[n++] = s;
+    for (char* p = s; *p && n < maxOut; ++p)
+        if (*p == delim) { *p = '\0'; out[n++] = p + 1; }
+    return n;
+}
+
+// Add or refresh a roster entry, keyed by MAC (two devices may share a
+// callsign, so ident is display-only). Stores the latest lives/score/inPileup.
+static void rosterUpdateBeacon(const uint8_t* mac, const char* ident,
+                               uint8_t lives, uint32_t score, bool inPileup) {
+    int slot = -1;
+    for (int i = 0; i < FTP_MAX_PLAYERS; i++)
+        if (ftp.players[i].active && memcmp(ftp.players[i].mac, mac, 6) == 0) {
+            slot = i; break;
+        }
+    if (slot < 0) {                              // new peer: claim a free slot
+        for (int i = 0; i < FTP_MAX_PLAYERS; i++)
+            if (!ftp.players[i].active) { slot = i; break; }
+        if (slot < 0) return;                    // roster full: ignore
+        memcpy(ftp.players[slot].mac, mac, 6);
+        ftp.players[slot].active = true;
+        ftp.playerCount++;
+    }
+    strncpy(ftp.players[slot].ident, ident, FTP_MAX_IDENT_LEN);
+    ftp.players[slot].ident[FTP_MAX_IDENT_LEN] = '\0';
+    ftp.players[slot].lives      = lives;
+    ftp.players[slot].score      = score;
+    ftp.players[slot].inPileup   = inPileup;
+    ftp.players[slot].eliminated = (lives == 0);
+    ftp.players[slot].lastBeacon = millis();
+}
+
+// Parse one received /ftp/ line (mutable; split in place) and dispatch by type.
+static void ftpHandleMessage(const uint8_t* mac, char* line) {
+    if (strncmp(line, FTP_MAGIC, FTP_MAGIC_LEN) != 0) return;
+    char* body = line + FTP_MAGIC_LEN;           // e.g. "B|ident|lives|score|inP"
+    char* f[6];
+    int nf = ftpSplit(body, '|', f, 6);
+    if (nf < 1 || f[0][0] == '\0') return;
+    switch (f[0][0]) {
+        case 'B':                                // Beacon
+            if (nf >= 5)
+                rosterUpdateBeacon(mac, f[1],
+                                   (uint8_t)atoi(f[2]),
+                                   (uint32_t)strtoul(f[3], nullptr, 10),
+                                   atoi(f[4]) != 0);
+            break;
+        case 'A':                                // Attack: from | toMac | call
+            if (nf >= 4) {
+                uint8_t toMac[6];
+                if (ftpHexToMac(f[2], toMac) &&
+                    memcmp(toMac, ftpMyMac(), 6) == 0) {   // addressed to this device
+                    int sidx = 0xFF;             // sender's roster slot (for the FROM label)
+                    for (int i = 0; i < FTP_MAX_PLAYERS; i++)
+                        if (ftp.players[i].active &&
+                            memcmp(ftp.players[i].mac, mac, 6) == 0) { sidx = i; break; }
+                    spawnNetworkAttack(f[3], (uint8_t)sidx);
+                }
+            }
+            break;
+        case 'X':                                // Eliminated: <ident> (key by source MAC)
+            for (int i = 0; i < FTP_MAX_PLAYERS; i++)
+                if (ftp.players[i].active &&
+                    memcmp(ftp.players[i].mac, mac, 6) == 0) {
+                    ftp.players[i].eliminated = true;
+                    break;
+                }
+            break;
+        case 'W':                                // Winner: <ident> | <score>
+            if (nf >= 2 && ftp.winnerIdent[0] == '\0') {   // first announcement wins
+                strncpy(ftp.winnerIdent, f[1], FTP_MAX_IDENT_LEN);
+                ftp.winnerIdent[FTP_MAX_IDENT_LEN] = '\0';
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 static void updateRoster() {
@@ -530,12 +659,33 @@ static void spawnAttack() {
     strncpy(ftp.callers[slot].call, call.c_str(), FTP_MAX_CALL_LEN);
     ftp.callers[slot].call[FTP_MAX_CALL_LEN] = '\0';
     ftp.callers[slot].spawnTime = millis();
+    ftp.callers[slot].queuedSince = millis();
     ftp.callers[slot].active = true;
     ftp.callers[slot].fromNetwork = false;
     ftp.callers[slot].senderIdx = 0;
     ftp.callers[slot].progress = 0.0f;
     ftp.callerCount++;
     ftp.lastSpawn = millis();
+}
+
+// Enqueue an attack received from another player (a specific callsign, not random).
+// Does not touch lastSpawn — it must not perturb the bot-spawn cadence.
+static void spawnNetworkAttack(const char* call, uint8_t senderIdx) {
+    for (int i = 0; i < FTP_MAX_CALLERS; i++)        // ignore an identical active caller
+        if (ftp.callers[i].active && strcmp(ftp.callers[i].call, call) == 0) return;
+    int slot = -1;
+    for (int i = FTP_MAX_CALLERS - 1; i >= 0; i--)
+        if (!ftp.callers[i].active) { slot = i; break; }
+    if (slot < 0) return;                            // queue full: drop
+    strncpy(ftp.callers[slot].call, call, FTP_MAX_CALL_LEN);
+    ftp.callers[slot].call[FTP_MAX_CALL_LEN] = '\0';
+    ftp.callers[slot].spawnTime = millis();
+    ftp.callers[slot].queuedSince = millis();
+    ftp.callers[slot].active = true;
+    ftp.callers[slot].fromNetwork = true;
+    ftp.callers[slot].senderIdx = senderIdx;
+    ftp.callers[slot].progress = 0.0f;
+    ftp.callerCount++;
 }
 
 // Find the active attack with the earliest spawn time (= the one to defend)
@@ -586,8 +736,10 @@ static void initGameData() {
     ftp.totalDropped = 0;
     ftp.wpm = MorsePreferences::wpm;
     ftp.eliminationCount = 0;
+    ftp.winnerIdent[0] = '\0';
+    ftp.iAmWinner = false;
     ftp.playerCount = 0;
-    ftp.singlePlayer = false;
+    ftp.singlePlayer = true;
     ftp.lastBeaconSent = 0;
     ftp.lastActivity = millis();
     ftp.callerCount = 0;
@@ -598,8 +750,7 @@ static void initGameData() {
         ftp.players[i].active = false;
     clearAllCallers();
     attackPromptActive = false;
-    cwPlayer.playing = false;
-    cwPlayer.toneOn = false;
+    MorseCwEngine::playStop();
 }
 
 
@@ -653,11 +804,13 @@ static void enterString(const char* prompt, char* result, int maxLen,
 
         int enc = checkEncoder();
         if (enc) {
+            MorseOutput::resetTOT();
             charIdx = (charIdx + enc + charMax) % charMax;
             MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
         }
 
         Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::modeButton.clicks == 1 && cursorPos < maxLen) {
             result[cursorPos] = ENTRY_CHARS[charIdx];
             cursorPos++;
@@ -671,6 +824,7 @@ static void enterString(const char* prompt, char* result, int maxLen,
         }
 
         Buttons::volButton.Update();
+        if (Buttons::volButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::volButton.clicks == 1 && cursorPos > 0) {
             cursorPos--;
             result[cursorPos] = '\0';
@@ -682,6 +836,7 @@ static void enterString(const char* prompt, char* result, int maxLen,
             return;
         }
 
+        checkShutDown(false);
         serialEvent();
         delay(20);
     }
@@ -735,11 +890,18 @@ static void stateLobby() {
             canvas->setFont(&fonts::FreeSans9pt7b);
             drawCentredText(155, "SINGLE PLAYER", FTP_TITLE);
         } else {
+            canvas->setFont(&fonts::FreeSans9pt7b);
+            drawCentredText(155, "MULTIPLAYER", FTP_TITLE);
             canvas->setFont(&fonts::Font0);
-            int y = 155;
+            // Show the channel by its preferences label (not the hidden number);
+            // both devices must be on the same one to see each other.
+            snprintf(buf, sizeof(buf), "Channel: %s",
+                     MorsePreferences::pliste[posLoraChannel].value ? "Secondary" : "Standard");
+            drawCentredText(180, buf, FTP_TEXT);
+            int y = 198;
             int active2 = countActivePlayers();
             if (active2 == 0)
-                drawCentredText(155, "Searching...", FTP_DIM);
+                drawCentredText(y, "Waiting for players...", FTP_TEXT);
             else {
                 for (int i = 0; i < FTP_MAX_PLAYERS && y < 230; i++) {
                     if (!ftp.players[i].active) continue;
@@ -766,6 +928,7 @@ static void stateLobby() {
         // Encoder: change difficulty
         int enc = checkEncoder();
         if (enc) {
+            MorseOutput::resetTOT();
             int d = (int)ftp.difficulty + enc;
             if (d < 0) d = 0;
             if (d >= FTP_NUM_DIFFICULTIES) d = FTP_NUM_DIFFICULTIES - 1;
@@ -781,17 +944,23 @@ static void stateLobby() {
         }
 
         Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::modeButton.clicks == 1) {
             ftp.singlePlayer = !ftp.singlePlayer;
+            // Bring ESP-NOW up the first time the user enters multiplayer.
+            // Teardown happens once on Pileup exit (mirrors MorseMorsel,
+            // PR #172) — toggling back to single does not stop the radio.
+            if (!ftp.singlePlayer && !EspNowIsActive) MorseMenu::setupESPNow();
         }
         if (Buttons::modeButton.clicks == -1) { ftp.state = FTP_EXIT; return; }
 
         Buttons::volButton.Update();
+        if (Buttons::volButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::volButton.clicks == 1) {
             if (hasCall && hasName) ftp.useCallsign = !ftp.useCallsign;
         }
-        if (Buttons::volButton.clicks == -1) { ftp.state = FTP_EXIT; return; }
 
+        checkShutDown(false);
         serialEvent();
         delay(20);
     }
@@ -809,6 +978,7 @@ static void stateCodeChallenge() {
     clearPaddleLatches();
     gameCharBuffer = 0;
     updateTimings();
+    encoderIsVolume = false;          // start on speed; FN (vol button) toggles to volume
 
     unsigned long startTime = millis();
     bool success = false;
@@ -859,11 +1029,21 @@ static void stateCodeChallenge() {
         snprintf(timeBuf, sizeof(timeBuf), "%lu sec", elapsed);
         drawCentredText(210, timeBuf, FTP_DIM);
 
+        // Speed / volume (encoder), same mechanism as the pileup; FN toggles.
+        char wvBuf[20];
+        if (encoderIsVolume)
+            snprintf(wvBuf, sizeof(wvBuf), "Vol %d", MorsePreferences::sidetoneVolume);
+        else
+            snprintf(wvBuf, sizeof(wvBuf), "%d wpm", ftp.wpm);
+        drawCentredText(234, wvBuf, FTP_ACCENT);
+        drawCentredText(254, "Encoder: spd   FN: vol", FTP_DIM);
+
         drawCentredText(280, "Long press: cancel", FTP_TEXT);
         pushFrame();
 
         char decoded = pollKeyedChar();
         if (decoded) {
+            MorseOutput::resetTOT();
             if (decoded >= 'a' && decoded <= 'z') decoded = decoded - 'a' + 'A';
             if (decoded == ftp.challengeCode[ftp.challengePos]) {
                 ftp.challengePos++;
@@ -875,11 +1055,32 @@ static void stateCodeChallenge() {
             }
         }
 
+        // Encoder: WPM, or volume when FN-toggled (same mechanism as the pileup).
+        if (keyerState == IDLE_STATE) {
+            int enc = checkEncoder();
+            if (enc) {
+                MorseOutput::resetTOT();
+                if (encoderIsVolume) {
+                    changeVolumeValue(enc);            // value-only: clamp + Pocket codec + protocol, no classic draw
+                    MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
+                } else {
+                    changeSpeedValue(enc);             // value-only: clamp + timings + protocol, no classic draw
+                    ftp.wpm = MorsePreferences::wpm;   // mirror back into the pileup's own model
+                }
+            }
+        }
+
         Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::modeButton.clicks == -1) { failed = true; }
         Buttons::volButton.Update();
-        if (Buttons::volButton.clicks == -1) { failed = true; }
+        if (Buttons::volButton.clicks != 0) MorseOutput::resetTOT();
+        if (Buttons::volButton.clicks == 1) {     // FN: toggle encoder speed/volume
+            encoderIsVolume = !encoderIsVolume;
+            MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
+        }
 
+        checkShutDown(false);
         serialEvent();
     }
 
@@ -904,6 +1105,8 @@ static void stateCodeChallenge() {
         ftp.totalDropped = 0;
         ftp.totalAttacksSent = 0;
         ftp.eliminationCount = 0;
+        ftp.winnerIdent[0] = '\0';
+        ftp.iAmWinner = false;
         ftp.callerCount = 0;
         ftp.lastSpawn = 0;
         ftp.spawnInterval = diff().spawnMax;
@@ -956,6 +1159,21 @@ static void drawPileupHUD() {
         canvas->drawString(buf, FTP_W - 4, 26);
         canvas->setTextDatum(lgfx::top_left);
     }
+
+    // Multiplayer: a compact live strip of opponents — "IDENT:lives", green
+    // while alive, dimmed once eliminated. Their lives update from beacons.
+    if (!ftp.singlePlayer) {
+        canvas->setFont(&fonts::Font0);
+        int x = 4;
+        for (int i = 0; i < FTP_MAX_PLAYERS && x < FTP_W - 34; i++) {
+            if (!ftp.players[i].active) continue;
+            char ob[16];
+            snprintf(ob, sizeof(ob), "%s:%d", ftp.players[i].ident, ftp.players[i].lives);
+            canvas->setTextColor(ftp.players[i].eliminated ? FTP_DIM : FTP_OK, FTP_BG);
+            canvas->drawString(ob, x, 26);
+            x += canvas->textWidth(ob) + 6;
+        }
+    }
 }
 
 static void drawDefendArea() {
@@ -984,7 +1202,16 @@ static void drawDefendArea() {
     atk.progress = (float)elapsed / (float)timeout;
 
     canvas->setFont(&fonts::Font0);
-    drawCentredText(y, "DEFEND!", FTP_WARN);
+    if (atk.fromNetwork) {
+        const char* who = (atk.senderIdx < FTP_MAX_PLAYERS &&
+                           ftp.players[atk.senderIdx].active)
+                          ? ftp.players[atk.senderIdx].ident : "NET";
+        char fb[24];
+        snprintf(fb, sizeof(fb), "FROM %s", who);
+        drawCentredText(y, fb, FTP_ATTACK);
+    } else {
+        drawCentredText(y, "DEFEND!", FTP_WARN);
+    }
 
     // Progress bar (time remaining)
     int barW = FTP_W - 20;
@@ -1000,15 +1227,16 @@ static void drawDefendArea() {
     if (fillW > 0)
         canvas->fillRect(barX, barY, fillW, barH, barColor);
 
-    // Show callsign text only after enough plays
-    if (cwPlayer.playCount >= FTP_PLAYS_BEFORE_REVEAL) {
+    // Show callsign text only after enough plays (fewer on harder levels).
+    uint8_t playsToReveal = diff().playsBeforeReveal;
+    if (MorseCwEngine::getPlayCount() >= playsToReveal) {
         canvas->setFont(&fonts::FreeSansBold12pt7b);
-        drawCentredText(y + 30, atk.call, FTP_TEXT);
+        drawCentredText(y + 30, atk.call, atk.fromNetwork ? FTP_ATTACK : FTP_TEXT);
     } else {
         // Show play count
         char pbuf[20];
         snprintf(pbuf, sizeof(pbuf), "Listen... (%d/%d)",
-                 cwPlayer.playCount + 1, FTP_PLAYS_BEFORE_REVEAL);
+                 MorseCwEngine::getPlayCount() + 1, playsToReveal);
         canvas->setFont(&fonts::Font0);
         drawCentredText(y + 34, pbuf, FTP_DIM);
     }
@@ -1049,16 +1277,22 @@ static void drawInputArea() {
         canvas->fillRect(cx, inputY + 22, 2, 16, FTP_INPUT);
     }
 
-    // Bottom status bar
-    canvas->fillRect(0, 290, FTP_W, 30, 0x2104);
+    // Bottom status bar: a single line showing EITHER the WPM or the volume,
+    // whichever the encoder currently adjusts; FN (vol button) swaps between them.
+    // One row only — the sprite is a touch shorter than the panel, so a second
+    // line at the very bottom would be clipped.
+    canvas->fillRect(0, 290, FTP_W, 30, FTP_BAND);
     canvas->setFont(&fonts::Font0);
     char buf[32];
-    snprintf(buf, sizeof(buf), "%d wpm", ftp.wpm);
-    canvas->setTextColor(FTP_TEXT, 0x2104);
+    if (encoderIsVolume)
+        snprintf(buf, sizeof(buf), "Vol %d", MorsePreferences::sidetoneVolume);
+    else
+        snprintf(buf, sizeof(buf), "%d wpm", ftp.wpm);
+    canvas->setTextColor(FTP_TEXT, FTP_BAND);
     canvas->drawString(buf, 4, 298);
 
     if (ftp.singlePlayer) {
-        canvas->setTextColor(FTP_TITLE, 0x2104);
+        canvas->setTextColor(FTP_TITLE, FTP_BAND);
         canvas->setTextDatum(lgfx::top_right);
         canvas->drawString("SOLO", FTP_W - 4, 298);
         canvas->setTextDatum(lgfx::top_left);
@@ -1067,8 +1301,8 @@ static void drawInputArea() {
     // Hint text (hidden during flash)
     if (!isFlashing()) {
         canvas->setFont(&fonts::Font0);
-        drawCentredText(204, "Click: submit response", FTP_TEXT);
-        drawCentredText(218, "or pause to auto-submit", FTP_DIM);
+        drawCentredText(202, "Click:submit  FN:spd/vol", FTP_TEXT);
+        drawCentredText(216, "or pause to auto-submit", FTP_DIM);
     }
 }
 
@@ -1132,13 +1366,24 @@ static void handleAttackSubmit() {
             expected[i] = expected[i] - 'a' + 'A';
 
     if (strcmp(ftp.inputBuf, expected) == 0) {
-        // Attack sent!
+        // Correct key — the attack is "sent".
         ftp.totalAttacksSent++;
         addScore(50);
-        triggerFlash(FTP_ATTACK, "ATTACK SENT!");
         playSoundCorrect();
         attackPromptActive = false;
-        // In multiplayer, this would send the attack to other players
+        if (!ftp.singlePlayer) {
+            int v = ftpPickVictim();
+            if (v >= 0) {
+                sendAttack(v, expected);          // broadcast /ftp/A to that peer
+                char fb[24];
+                snprintf(fb, sizeof(fb), "ATTACK %s", ftp.players[v].ident);
+                triggerFlash(FTP_ATTACK, fb);
+            } else {
+                triggerFlash(FTP_ATTACK, "NO TARGET");
+            }
+        } else {
+            triggerFlash(FTP_ATTACK, "ATTACK SENT!");
+        }
     } else {
         playSoundWrong();
         triggerFlash(FTP_WARN, "TRY AGAIN");
@@ -1156,17 +1401,20 @@ static void statePileup() {
     gameCharBuffer = 0;
     updateTimings();
 
-    char challenge[FTP_MAX_CALL_LEN + 1];
-    challenge[0] = '\0';
-    bool needNewChallenge = true;
-    bool waitingForResult = false;
-    char resultExpected[FTP_MAX_CALL_LEN + 1] = "";
-    char resultGot[FTP_MAX_CALL_LEN + 1] = "";
-    unsigned long correctFlashTime = 0;
-    bool lastWasTimeout = false;
+    currentAttackIdx = -1;
+    attackPromptActive = false;
+    clearAllCallers();
+    for (int i = 0; i < diff().initialCallers && i < FTP_MAX_CALLERS; i++)
+        spawnAttack();
+    ftp.lastSpawn = millis();
+
+    char challenge[FTP_MAX_CALL_LEN + 1] = "";   // active caller currently loaded into the CW player
+    bool freshCaller = false;                    // true on the frame a new caller is loaded
+    bool attackMode = false;                     // true while keying an earned attack (pileup paused)
+    unsigned long attackModeStart = 0;           // millis() the pause began (freezes queue patience)
+    bool waitingForResult = false;               // kept false: preserves the tuned tight-loop guard verbatim
     unsigned long lastSubmitTime = 0;
-    unsigned long challengeStartTime = 0;
-    bool encoderIsVolume = false;
+    encoderIsVolume = false;                     // reset the file-static FN toggle on game entry
 
     clearInput();
     unsigned long lastFrame = millis();
@@ -1191,7 +1439,7 @@ static void statePileup() {
                 if (c != 0) {
                     gameCharBuffer = 0;
                     if (c == ' ') {
-                        if (ftp.inputPos >= 2) {
+                        if (ftp.inputPos >= 1) {
                             ftp.lastCharTime = 0;
                             ftp.challengePos = 1;
                         }
@@ -1205,7 +1453,7 @@ static void statePileup() {
                     }
                 }
 
-                if (ftp.inputPos >= 2 && ftp.lastCharTime > 0 &&
+                if (ftp.inputPos >= 1 && ftp.lastCharTime > 0 &&
                     keyerState == IDLE_STATE && !leftKey && !rightKey) {
                     unsigned long wordGap = interWordSpace + ditLength;
                     if (wordGap < 1200) wordGap = 1200;
@@ -1232,103 +1480,143 @@ static void statePileup() {
         doPaddleIambic(leftKey, rightKey);
 
         if (keyerState != IDLE_STATE || leftKey || rightKey) {
+            MorseOutput::resetTOT();          // keying is activity
             serialEvent();
             continue;
         }
 
-        if (cwPlayer.toneOn) {
+        if (MorseCwEngine::isToneOn()) {
             cwPlayerUpdate();
             serialEvent();
             continue;
         }
 
-        // --- CW player management ---
-        if (ftp.inputPos > 0 || leftKey || rightKey || keyerState != IDLE_STATE) {
-            if (cwPlayer.playing) cwPlayerStop();
+        // Drain inbound /ftp/ packets (network attacks + beacons) on idle frames.
+        // Not while an attack pause is active: callers enqueued during the pause
+        // would be wrongly time-shifted on resume. They wait in the ring instead.
+        if (!ftp.singlePlayer && !attackMode) checkReceivedMessages();
+
+        // Keep the roster live during the game: beacon our own state (lives/score,
+        // inPileup = 1) so peers can track us, and age out peers that went silent.
+        if (!ftp.singlePlayer) {
+            if (millis() - ftp.lastBeaconSent >= FTP_BEACON_INTERVAL) sendBeacon();
+            updateRoster();
         }
-        if (keyerState == IDLE_STATE && ftp.inputPos == 0 &&
-            !leftKey && !rightKey &&
-            millis() - lastSubmitTime > 2000) {
-            if (!cwPlayer.playing && challenge[0] != '\0' &&
-                correctFlashTime == 0) {
-                uint8_t saved = cwPlayer.playCount;
-                cwPlayerStart(challenge);
-                cwPlayer.playCount = saved;
+
+        // --- Earned-attack mode: after a correct defend the pileup pauses and the
+        //     player keys ONE attack. No spawning / no timeouts while it is up. ---
+        freshCaller = false;
+        if (attackMode) {
+            currentAttackIdx = -1;
+            if (MorseCwEngine::isPlaying()) cwPlayerStop();
+            challenge[0] = '\0';
+            if (!attackPromptActive) generateAttackPrompt();
+        } else {
+            // Spawn bot callers on a timer (bots keep the pressure up).
+            if (ftp.callerCount < FTP_MAX_CALLERS &&
+                millis() - ftp.lastSpawn > ftp.spawnInterval) {
+                spawnAttack();
             }
-            cwPlayerUpdate();
-            updateFtpSound();
+            // Lock onto one caller at a time. Pick a new one only when the
+            // current is gone, and reset its timeout reference on activation so
+            // EVERY caller gets its full defend window (queued callers wait
+            // without ageing — only the active one counts down).
+            attackPromptActive = false;
+            if (currentAttackIdx < 0) {
+                currentAttackIdx = findActiveAttack();
+                if (currentAttackIdx >= 0)
+                    ftp.callers[currentAttackIdx].spawnTime = millis();
+            }
+            if (currentAttackIdx >= 0) {
+                // Load the active caller into the CW player when it changes.
+                if (strcmp(challenge, ftp.callers[currentAttackIdx].call) != 0) {
+                    strncpy(challenge, ftp.callers[currentAttackIdx].call, FTP_MAX_CALL_LEN);
+                    challenge[FTP_MAX_CALL_LEN] = '\0';
+                    cwPlayerStart(challenge);      // fresh caller: play from count 0
+                    clearInput();
+                    freshCaller = true;
+                }
+            } else {
+                challenge[0] = '\0';
+                if (MorseCwEngine::isPlaying()) cwPlayerStop();
+            }
         }
 
-        // --- New challenge ---
-        if (needNewChallenge) {
-            String call = getRandomCall(0);
-            call.toUpperCase();
-            strncpy(challenge, call.c_str(), FTP_MAX_CALL_LEN);
-            challenge[FTP_MAX_CALL_LEN] = '\0';
-            cwPlayerStart(challenge);
-            clearInput();
-            ftp.challengePos = 0;
-            needNewChallenge = false;
-            waitingForResult = false;
-            challengeStartTime = millis();
+        // --- CW player management for the active caller (tuned: stop-on-key, 2 s replay) ---
+        if (currentAttackIdx >= 0) {
+            if (ftp.inputPos > 0 || leftKey || rightKey || keyerState != IDLE_STATE) {
+                if (MorseCwEngine::isPlaying()) cwPlayerStop();
+            }
+            if (keyerState == IDLE_STATE && ftp.inputPos == 0 &&
+                !leftKey && !rightKey &&
+                millis() - lastSubmitTime > 2000) {
+                if (!MorseCwEngine::isPlaying() && challenge[0] != '\0' && !freshCaller) {
+                    uint8_t saved = MorseCwEngine::getPlayCount();
+                    cwPlayerStart(challenge);
+                    MorseCwEngine::setPlayCount(saved);
+                }
+                cwPlayerUpdate();
+                updateFtpSound();
+            }
         }
 
         // --- Submission ---
-        if (ftp.challengePos == 1 && !waitingForResult) {
+        if (ftp.challengePos == 1) {
             ftp.challengePos = 0;
-            cwPlayerStop();
-
-            ftp.inputBuf[ftp.inputPos] = '\0';
-            strncpy(resultGot, ftp.inputBuf, FTP_MAX_CALL_LEN);
-            resultGot[FTP_MAX_CALL_LEN] = '\0';
-
-            strncpy(resultExpected, challenge, FTP_MAX_CALL_LEN);
-            resultExpected[FTP_MAX_CALL_LEN] = '\0';
-            for (int i = 0; resultExpected[i]; i++)
-                if (resultExpected[i] >= 'a' && resultExpected[i] <= 'z')
-                    resultExpected[i] = resultExpected[i] - 'a' + 'A';
-
-            if (strcmp(resultGot, resultExpected) == 0) {
-                ftp.streak++;
-                if (ftp.streak > ftp.bestStreak) ftp.bestStreak = ftp.streak;
-                int bonus = FTP_SCORE_CORRECT + (ftp.streak * FTP_SCORE_STREAK_BONUS);
-                addScore(bonus);
-                ftp.totalBlocked++;
-                playSoundCorrect();
-                correctFlashTime = millis();
-                lastWasTimeout = false;
-            } else {
-                ftp.streak = 0;
-                addScore(FTP_SCORE_WRONG);
-                playSoundWrong();
-                triggerFlash(FTP_WARN, "WRONG");
-                uint8_t saved = cwPlayer.playCount;
-                cwPlayerStart(challenge);
-                cwPlayer.playCount = saved;
+            if (attackMode) {
+                handleAttackSubmit();              // single-player: scores only (P4b broadcasts /ftp/A)
+                if (!attackPromptActive) {         // attack sent -> resume the pileup
+                    // Unfreeze queue patience: callers did not age during the pause.
+                    unsigned long paused = millis() - attackModeStart;
+                    for (int i = 0; i < FTP_MAX_CALLERS; i++)
+                        if (ftp.callers[i].active) ftp.callers[i].queuedSince += paused;
+                    attackMode = false;
+                    ftp.lastSpawn = millis();      // restart the bot-spawn cadence cleanly
+                }
+            } else if (currentAttackIdx >= 0) {
+                handleDefendSubmit();              // correct: removeAttack + currentAttackIdx = -1
+                if (currentAttackIdx < 0) {        // correct defend -> earn one keyed attack
+                    challenge[0] = '\0';
+                    attackMode = true;
+                    attackModeStart = millis();
+                    attackPromptActive = false;    // a fresh prompt is generated next frame
+                }
             }
-            clearInput();
             lastSubmitTime = millis();
         }
 
-        // --- Auto-advance after correct ---
-        if (correctFlashTime > 0 && millis() - correctFlashTime > 1000) {
-            correctFlashTime = 0;
-            needNewChallenge = true;
-        }
-
-        // --- Timeout ---
-        if (challengeStartTime > 0 && correctFlashTime == 0 &&
-            millis() - challengeStartTime > diff().callerTimeout) {
+        // --- Timeout of the active caller (counted from activation). Never while a
+        //     response is in progress, so an answer is not cut off mid-key and the
+        //     caller you are copying cannot be swapped out from under you. ---
+        if (currentAttackIdx >= 0 && ftp.inputPos == 0 &&
+            millis() - ftp.callers[currentAttackIdx].spawnTime > diff().callerTimeout) {
             cwPlayerStop();
+            removeAttack(currentAttackIdx);
+            currentAttackIdx = -1;
+            challenge[0] = '\0';
             ftp.totalDropped++;
             ftp.streak = 0;
             addScore(FTP_SCORE_TIMEOUT);
             playSoundTimeout();
-            challengeStartTime = 0;
-            lastWasTimeout = true;
-            correctFlashTime = millis();
+            triggerFlash(FTP_WARN, "TIMEOUT");
             clearInput();
             lastSubmitTime = millis();
+        }
+
+        // --- Backlog give-up: a caller waiting too long in the queue (not the one
+        //     being defended) loses patience and leaves, counting as a drop. This is
+        //     the pressure — fall behind and the pile thins itself at your expense. ---
+        if (!attackMode) {
+            unsigned long patience = diff().callerTimeout;
+            for (int i = 0; i < FTP_MAX_CALLERS; i++) {
+                if (!ftp.callers[i].active || i == currentAttackIdx) continue;
+                if (millis() - ftp.callers[i].queuedSince > patience) {
+                    removeAttack(i);
+                    ftp.totalDropped++;
+                    triggerFlash(FTP_WARN, "MISSED!");
+                    break;                 // at most one give-up per frame (readable feedback)
+                }
+            }
         }
 
         // --- Life loss ---
@@ -1345,135 +1633,35 @@ static void statePileup() {
             }
         }
 
-        if (ftp.lives == 0) {
+        // --- End conditions ---
+        if (!ftp.singlePlayer && ftp.winnerIdent[0]) {    // a peer announced the winner
             cleanupKeyer();
+            ftp.state = FTP_GAME_OVER;                     // keep pileupMode: game over listens
+            return;
+        }
+        if (ftp.lives == 0) {                              // we were eliminated
+            cleanupKeyer();
+            if (!ftp.singlePlayer) sendEliminated();        // tell peers we are out
+            else pileupMode = false;                        // MP keeps listening for /ftp/W
             ftp.state = FTP_GAME_OVER;
-            pileupMode = false;
+            return;
+        }
+        if (!ftp.singlePlayer && ftpIsLastStanding()) {    // sole survivor -> we win
+            ftp.iAmWinner = true;
+            strncpy(ftp.winnerIdent, getPlayerIdent(), FTP_MAX_IDENT_LEN);
+            ftp.winnerIdent[FTP_MAX_IDENT_LEN] = '\0';
+            sendWinner();
+            cleanupKeyer();
+            ftp.state = FTP_GAME_OVER;                      // keep pileupMode
             return;
         }
 
-        // --- Draw ---
+        // --- Draw (revived queued DEFEND/ATTACK UI) ---
         canvas->fillSprite(FTP_BG);
-
-        // HUD: lives | ident | score
-        for (int i = 0; i < ftp.lives; i++)
-            canvas->fillCircle(10 + i * 14, 10, 5, FTP_WARN);
-
-        canvas->setFont(&fonts::FreeSans9pt7b);
-        canvas->setTextColor(FTP_TEXT, FTP_BG);
-        canvas->setTextDatum(lgfx::top_center);
-        canvas->drawString(getPlayerIdent(), FTP_W / 2, 2);
-        {
-            char sbuf[16];
-            snprintf(sbuf, sizeof(sbuf), "%lu", (unsigned long)ftp.score);
-            canvas->setTextColor(FTP_ACCENT, FTP_BG);
-            canvas->setTextDatum(lgfx::top_right);
-            canvas->drawString(sbuf, FTP_W - 4, 2);
-            canvas->setTextDatum(lgfx::top_left);
-        }
-        canvas->drawFastHLine(0, 21, FTP_W, FTP_TEXT);
-
-        if (ftp.streak > 0) {
-            char stbuf[8];
-            snprintf(stbuf, sizeof(stbuf), "x%d", ftp.streak);
-            canvas->setFont(&fonts::Font0);
-            canvas->setTextColor(FTP_TITLE, FTP_BG);
-            canvas->setTextDatum(lgfx::top_right);
-            canvas->drawString(stbuf, FTP_W - 4, 24);
-            canvas->setTextDatum(lgfx::top_left);
-        }
-
-        // Progress bar
-        if (challengeStartTime > 0 && correctFlashTime == 0) {
-            unsigned long elapsed = millis() - challengeStartTime;
-            float remaining = 1.0f - (float)elapsed / (float)diff().callerTimeout;
-            if (remaining < 0.0f) remaining = 0.0f;
-            int barW = FTP_W - 20, barX = 10, barY = 34, barH = 4;
-            int fillW = (int)(barW * remaining);
-            uint16_t barColor = remaining > 0.5f ? FTP_OK :
-                                remaining > 0.25f ? FTP_TITLE : FTP_WARN;
-            canvas->drawRect(barX, barY, barW, barH, FTP_DIM);
-            if (fillW > 0) canvas->fillRect(barX, barY, fillW, barH, barColor);
-        }
-
-        // Challenge area
-        if (correctFlashTime > 0) {
-            canvas->setFont(&fonts::FreeSansBold12pt7b);
-            if (lastWasTimeout) {
-                drawCentredText(50, "TIMEOUT", FTP_WARN);
-                canvas->setFont(&fonts::FreeSans9pt7b);
-                drawCentredText(80, challenge, FTP_TITLE);
-            } else {
-                drawCentredText(50, "OK!", FTP_OK);
-                char cbuf[16];
-                snprintf(cbuf, sizeof(cbuf), "+%d",
-                    FTP_SCORE_CORRECT + ftp.streak * FTP_SCORE_STREAK_BONUS);
-                canvas->setFont(&fonts::FreeSans9pt7b);
-                drawCentredText(80, cbuf, FTP_OK);
-            }
-        } else {
-            canvas->setFont(&fonts::Font0);
-            char pbuf[20];
-            snprintf(pbuf, sizeof(pbuf), "Play #%d", cwPlayer.playCount + 1);
-            drawCentredText(44, pbuf, FTP_DIM);
-
-            if (cwPlayer.playCount >= FTP_PLAYS_BEFORE_REVEAL) {
-                canvas->setFont(&fonts::Font0);
-                drawCentredText(60, "Hint:", FTP_DIM);
-                canvas->setFont(&fonts::FreeSansBold12pt7b);
-                drawCentredText(74, challenge, FTP_TITLE);
-            } else {
-                canvas->setFont(&fonts::FreeSans9pt7b);
-                drawCentredText(66, "Listen...", FTP_TEXT);
-                char dots[8] = "";
-                for (int i = 0; i < FTP_PLAYS_BEFORE_REVEAL; i++)
-                    dots[i] = (i < cwPlayer.playCount) ? '*' : '.';
-                dots[FTP_PLAYS_BEFORE_REVEAL] = '\0';
-                drawCentredText(86, dots, FTP_ACCENT);
-            }
-        }
-
-        drawFlash();
-
-        // Input area
-        int inputY = 130;
-        canvas->drawFastHLine(0, inputY, FTP_W, FTP_DIM);
-        canvas->setFont(&fonts::Font0);
-        drawCentredText(inputY + 4, "YOUR RESPONSE:", FTP_DIM);
-        canvas->setFont(&fonts::FreeSansBold12pt7b);
-        if (ftp.inputPos > 0) {
-            drawCentredText(inputY + 20, ftp.inputBuf, FTP_INPUT);
-        } else {
-            canvas->setFont(&fonts::Font0);
-            drawCentredText(inputY + 26, "Key the callsign...", FTP_DIM);
-        }
-
-        // Stats
-        canvas->setFont(&fonts::Font0);
-        {
-            char statBuf[32];
-            snprintf(statBuf, sizeof(statBuf), "OK:%d  Miss:%d",
-                     ftp.totalBlocked, ftp.totalDropped);
-            drawCentredText(200, statBuf, FTP_DIM);
-        }
-        drawCentredText(218, "Click:submit FN:spd/vol", FTP_DIM);
-
-        // Status bar
-        canvas->fillRect(0, 290, FTP_W, 30, 0x2104);
-        canvas->setFont(&fonts::Font0);
-        {
-            char buf[20];
-            snprintf(buf, sizeof(buf), "%d wpm%s", ftp.wpm,
-                     encoderIsVolume ? "" : " <");
-            canvas->setTextColor(encoderIsVolume ? FTP_DIM : FTP_TEXT, 0x2104);
-            canvas->drawString(buf, 4, 294);
-            snprintf(buf, sizeof(buf), "%sVol %d",
-                     encoderIsVolume ? "< " : "",
-                     MorsePreferences::sidetoneVolume);
-            canvas->setTextColor(encoderIsVolume ? FTP_TEXT : FTP_DIM, 0x2104);
-            canvas->drawString(buf, 4, 306);
-        }
-
+        drawPileupHUD();        // lives | ident | score | streak
+        drawDefendArea();       // active caller DEFEND, or "YOUR ATTACK" prompt, or waiting
+        drawInputArea();        // keyed input, hints, wpm/SOLO status band
+        drawFlash();            // transient OK/WRONG/TIMEOUT/LIFE LOST overlay
         pushFrame();
 
         checkPaddles();
@@ -1483,23 +1671,20 @@ static void statePileup() {
         if (!waitingForResult && keyerState == IDLE_STATE) {
             int enc = checkEncoder();
             if (enc) {
+                MorseOutput::resetTOT();
                 if (encoderIsVolume) {
-                    int newVol = constrain((int)MorsePreferences::sidetoneVolume + enc, 0, 19);
-                    MorsePreferences::sidetoneVolume = newVol;
-                    #ifdef CONFIG_TLV320AIC3100
-                    MorseOutput::soundSetVolume(newVol);
-                    #endif
-                    MorseOutput::pwmClick(newVol);
+                    changeVolumeValue(enc);            // value-only: clamp + Pocket codec + protocol, no classic draw
+                    MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
                 } else {
-                    ftp.wpm = constrain(ftp.wpm + enc, 5, 60);
-                    MorsePreferences::wpm = ftp.wpm;
-                    updateTimings();
+                    changeSpeedValue(enc);             // value-only: clamp + timings + protocol, no classic draw
+                    ftp.wpm = MorsePreferences::wpm;   // mirror back into the pileup's own model
                 }
             }
         }
 
         // --- Buttons ---
         Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::modeButton.clicks == 1 && ftp.inputPos >= 1) {
             ftp.challengePos = 1;
         }
@@ -1510,17 +1695,14 @@ static void statePileup() {
             return;
         }
         Buttons::volButton.Update();
+        if (Buttons::volButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::volButton.clicks == 1) {
             encoderIsVolume = !encoderIsVolume;
             MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
         }
-        if (Buttons::volButton.clicks == -1) {
-            cleanupKeyer();
-            ftp.state = FTP_EXIT;
-            pileupMode = false;
-            return;
-        }
+        // red-long no longer exits — black-knob long-press (above) is the sole exit (H2)
 
+        checkShutDown(false);                 // inactivity -> deep sleep (like other modes)
         serialEvent();
     }
 
@@ -1531,39 +1713,65 @@ static void statePileup() {
 //=== STATE: Game Over ===
 
 static void stateGameOver() {
-    uint16_t totalCallers = ftp.totalBlocked + ftp.totalDropped;
-    uint8_t accuracy = (totalCallers > 0) ?
-        (uint8_t)(ftp.totalBlocked * 100 / totalCallers) : 0;
-
-    canvas->fillSprite(FTP_BG);
-    canvas->setFont(&fonts::FreeSansBold18pt7b);
-    drawCentredText(20, "PILEUP", FTP_WARN);
-    drawCentredText(58, "OVER!", FTP_WARN);
-
-    canvas->setFont(&fonts::FreeSans9pt7b);
-    char buf[40];
-    snprintf(buf, sizeof(buf), "Score: %lu", (unsigned long)ftp.score);
-    drawCentredText(110, buf, FTP_ACCENT);
-
-    canvas->setFont(&fonts::Font0);
-    snprintf(buf, sizeof(buf), "Defended: %d  Dropped: %d", ftp.totalBlocked, ftp.totalDropped);
-    drawCentredText(140, buf, FTP_TEXT);
-
-    snprintf(buf, sizeof(buf), "Accuracy: %d%%", accuracy);
-    drawCentredText(158, buf, accuracy >= 70 ? FTP_OK : FTP_WARN);
-
-    snprintf(buf, sizeof(buf), "Best streak: %d", ftp.bestStreak);
-    drawCentredText(176, buf, FTP_TEXT);
-
-    snprintf(buf, sizeof(buf), "%d wpm / %s", ftp.wpm, diff().label);
-    drawCentredText(200, buf, FTP_DIM);
-
-    drawCentredText(260, "Click: play again", FTP_TEXT);
-    drawCentredText(276, "Long press: exit", FTP_TEXT);
-    pushFrame();
+    unsigned long lastNet = 0;
 
     while (ftp.state == FTP_GAME_OVER) {
+        // Multiplayer: keep listening for the winner announcement, and keep
+        // telling peers our state — the winner re-announces /ftp/W (packets
+        // drop), everyone else beacons with lives = 0 so peers mark us out.
+        if (!ftp.singlePlayer) {
+            checkReceivedMessages();
+            if (millis() - lastNet >= FTP_BEACON_INTERVAL) {
+                if (ftp.iAmWinner) sendWinner();
+                else               sendBeacon();
+                lastNet = millis();
+            }
+        }
+
+        uint16_t totalCallers = ftp.totalBlocked + ftp.totalDropped;
+        uint8_t accuracy = (totalCallers > 0) ?
+            (uint8_t)(ftp.totalBlocked * 100 / totalCallers) : 0;
+
+        canvas->fillSprite(FTP_BG);
+        if (ftp.iAmWinner) {
+            canvas->setFont(&fonts::FreeSansBold18pt7b);
+            drawCentredText(20, "YOU", FTP_OK);
+            drawCentredText(58, "WIN!", FTP_OK);
+        } else if (ftp.winnerIdent[0]) {
+            canvas->setFont(&fonts::FreeSansBold12pt7b);
+            drawCentredText(26, "WINNER", FTP_TITLE);
+            canvas->setFont(&fonts::FreeSansBold18pt7b);
+            drawCentredText(52, ftp.winnerIdent, FTP_TITLE);
+        } else {
+            canvas->setFont(&fonts::FreeSansBold18pt7b);
+            drawCentredText(20, "PILEUP", FTP_WARN);
+            drawCentredText(58, "OVER!", FTP_WARN);
+        }
+
+        canvas->setFont(&fonts::FreeSans9pt7b);
+        char buf[40];
+        snprintf(buf, sizeof(buf), "Score: %lu", (unsigned long)ftp.score);
+        drawCentredText(110, buf, FTP_ACCENT);
+
+        canvas->setFont(&fonts::Font0);
+        snprintf(buf, sizeof(buf), "Defended: %d  Dropped: %d", ftp.totalBlocked, ftp.totalDropped);
+        drawCentredText(140, buf, FTP_TEXT);
+        snprintf(buf, sizeof(buf), "Accuracy: %d%%", accuracy);
+        drawCentredText(158, buf, accuracy >= 70 ? FTP_OK : FTP_WARN);
+        snprintf(buf, sizeof(buf), "Best streak: %d", ftp.bestStreak);
+        drawCentredText(176, buf, FTP_TEXT);
+        snprintf(buf, sizeof(buf), "%d wpm / %s", ftp.wpm, diff().label);
+        drawCentredText(200, buf, FTP_DIM);
+
+        if (!ftp.singlePlayer && !ftp.iAmWinner && !ftp.winnerIdent[0])
+            drawCentredText(222, "waiting for result...", FTP_DIM);
+
+        drawCentredText(260, "Click: Play Again", FTP_TEXT);
+        drawCentredText(276, "Long press: Exit", FTP_TEXT);
+        pushFrame();
+
         Buttons::modeButton.Update();
+        if (Buttons::modeButton.clicks != 0) MorseOutput::resetTOT();
         if (Buttons::modeButton.clicks == 1) {
             initGameData();
             ftp.state = FTP_LOBBY;
@@ -1571,7 +1779,8 @@ static void stateGameOver() {
         }
         if (Buttons::modeButton.clicks == -1) { ftp.state = FTP_EXIT; return; }
         Buttons::volButton.Update();
-        if (Buttons::volButton.clicks == -1) { ftp.state = FTP_EXIT; return; }
+        if (Buttons::volButton.clicks != 0) MorseOutput::resetTOT();
+        checkShutDown(false);
         serialEvent();
         delay(20);
     }
@@ -1580,8 +1789,10 @@ static void stateGameOver() {
 //=== Main entry point ===
 
 void MorsePileup::run() {
-    canvas = MorseGameMode::enterPortrait(MorsePreferences::leftHanded);
+    canvas = MorseGameMode::enterPortrait(MorsePreferences::leftHanded, 8);
     if (!canvas) return;
+
+    MorseOutput::resetTOT();                     // start the inactivity timer fresh
 
     loadPlayerIdentity();
     ftp.difficulty = 0;
@@ -1605,6 +1816,15 @@ void MorsePileup::run() {
     cleanupKeyer();
     MorsePreferences::wpm = ftp.wpm;
     MorsePreferences::writePreferences("morserino");
+    // Tear down ESP-NOW if multiplayer brought it up. Mirrors MorseMorsel
+    // (PR #172): menu_()'s WiFi/ESP-NOW teardown only re-runs on menu
+    // *entry*, not between two game launches, so the radio would otherwise
+    // stay up and fragment the heap against the next sprite allocation.
+    if (EspNowIsActive) {
+        quickEspNow.stop();
+        EspNowIsActive = false;
+        WiFi.mode(WIFI_OFF);
+    }
     MorseGameMode::exit();
     Buttons::modeButton.clicks = 0;
     Buttons::volButton.clicks = 0;

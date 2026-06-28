@@ -41,7 +41,7 @@ const char* const PROJECTNAME = "Morserino-32";
 const char* const COPYRIGHT = "\xc2\xa9 2018-2026";  // © in UTF-8
 
 #define VERSION_MAJOR 8
-#define VERSION_MINOR 0
+#define VERSION_MINOR 1
 #define VERSION_PATCH 0
 
 #define BETA false
@@ -55,6 +55,8 @@ const char* const COPYRIGHT = "\xc2\xa9 2018-2026";  // © in UTF-8
 
 // using the M32 serial protocol
 //define M32Protocol version 1.1 updateTimings(), 1.2 add bulk file upload file list and delete
+// 1.3 add snapshot/player/customchars/hardware/battery reads + reset/defaults
+//     (within 1.3: reset/defaults reboots to apply; "firmware" field now populated)
 #define M32P_VERSION "1.3"
 
 /////// protocol version for IP (and LoRa) - for the time being this is B01
@@ -156,10 +158,10 @@ const int HF_Pin = PIN_HF;    // for the HF PWM generation
 const int HF_Pin = 22;
 #endif
 
-/// voltage calibration factor
-#ifdef ARDUINO_heltec_wifi_kit_32_V3
-#define VOLT_CALIBRATE 4.33
-#else
+/// voltage calibration factor — named flag (L8): override per board with
+/// -D VOLT_CALIBRATE in platformio.ini build_flags. Default 12.9; set to 4.33
+/// in the heltec_wifi_kit_32_V3 and minipcb_lora envs.
+#ifndef VOLT_CALIBRATE
 #define VOLT_CALIBRATE 12.9
 #endif
 
@@ -323,16 +325,27 @@ enum encoderMode                // define modes for state machine of the various
 
 enum morserinoMode              // the states the morserino can be in - selected in top level menu
   {
-      morseKeyer, loraTrx, wifiTrx, morseTrx, morseGenerator, echoTrainer, morseDecoder, shutDown, measureNF, invalid
+      morseKeyer, loraTrx, wifiTrx, morseTrx, morseGenerator, echoTrainer, morseDecoder,
+      morseGame,                  // a Pocket TFT game owns the keyer: local sidetone only,
+                                  // never transmits (LoRa/WiFi/ESP-NOW) and never keys the
+                                  // external TX. Set on game entry; reset by the next menu mode.
+      morseQsoBot,                // QSO-Bot simulator: same safety property as morseGame
+                                  // (local sidetone only, never RF, never external TX). Kept
+                                  // semantically distinct so future bot-specific gating
+                                  // doesn't have to ride on morseGame.
+      shutDown, measureNF, invalid
   };
 
-// Base menu count: 43 entries (indices 0..42, classic M32 with LoRa, no Games)
+// Base menu count: 43 entries (indices 0..42, classic M32 with LoRa, no Games, no QSO Bot)
 const uint8_t menuN = 43
 #ifdef LORA_DISABLED
     - 1    // no LoRa Trx entry
 #endif
 #ifdef CONFIG_CW_GAME
-    + 4    // Games, Morse Invaders, Fight the Pileup, Radio Cave
+    + 5    // Games, Morse Invaders, Fight the Pileup, Radio Cave, Morsel
+#endif
+#ifdef CONFIG_QSO_BOT
+    + 4    // QSO Bot, SOTA/POTA, Standard, Contest
 #endif
     ;
 
@@ -345,9 +358,13 @@ enum menuNo
 #ifndef LORA_DISABLED
         _trxLora,
 #endif
-        _trxWifi, _trxIcw, _decode,
+        _trxWifi, _trxIcw,
+#ifdef CONFIG_QSO_BOT
+        _qsoBot, _qsoSotaPota, _qsoStandard, _qsoContest,
+#endif
+        _decode,
 #ifdef CONFIG_CW_GAME
-        _games, _morseInvaders, _fightPileup, _radioCave,
+        _games, _morseInvaders, _fightPileup, _radioCave, _morsel,
 #endif
         _wifi, _wifi_mac, _wifi_config, _wifi_check, _wifi_upload,
         _wifi_update, _wifi_select, _goToSleep
@@ -382,18 +399,22 @@ enum prefPos : uint8_t {
                 posKochSeq, posCarouselStart, posLatency, posRandomFile, posExtAudioOnDecode, posTimeOut,     // 25
                 posQuickStart, posOutputCase, posAutoStop, posMaxSequence, posLoraChannel,                    // 31
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-				posBluetoothOut,
+				posBluetoothOut, posBluetoothARkey,
 #endif
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
         posTheme, 
 #endif
 #ifdef CONFIG_CW_GAME
         posInvaderOrient,
 #endif
+#ifdef CONFIG_QSO_BOT
+        posQsoBotContestType,
+#endif
   posSerialOut,
                 // to be treated differently:
                 posKochFilter,                                                                                // 36
                 posLoraBand, posLoraQRG, posLoraPower, posSnapRecall, posSnapStore,  posVAdjust, posHwConf,    // 37
+                posPlayerCall, posPlayerName, posResetScores,                                                  // Phase E: identity + score reset
 };
 
 enum actMessage : int {

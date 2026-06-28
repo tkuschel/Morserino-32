@@ -18,15 +18,19 @@
 ////////////////////////////// New scrolling display
 
 
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
 /// circular buffer: 14 chars by NoOfLines lines (bottom NoOfVisibleLines are visible)
 #define NoOfCharsPerLine 14
 #define LINE_HEIGHT 16
 #define DESCENDER_LENGTH 0
 #define C_WIDTH 9
 #else
-/// circular buffer: LCD uses 4 visible lines; keep scroll-back proportional
-#define NoOfCharsPerLine 512
+/// circular buffer: LCD uses 4 visible lines; 24 chars/line is well above
+/// the longest static printOnScroll() text (~14 chars at the largest fonts).
+/// Earlier value 512 reserved ~17 KB persistent RAM with no callers writing
+/// anywhere near that much; longer dynamic strings are still gracefully
+/// wrapped by the existing screenPos+l > NoOfCharsPerLine check.
+#define NoOfCharsPerLine 24
 #define LINE_HEIGHT (display.getStringHeight("j"))
 #define C_WIDTH display.getStringWidth("A")
 #endif
@@ -38,12 +42,17 @@
 
 #define SCROLL_TOP scrollTop
 
-#ifndef CONFIG_DISPLAYWRAPPER
-#include "wklfonts.h"
-#include  "SSD1306Wire.h"
-SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_TWO, 700000);
+#ifndef CONFIG_TFT
+#include "wklfonts.h"            // legacy DialogInput byte-array fonts
+#include "M32OledLGFX.h"
+LGFX display;
 #else
+// TFT path — using DisplayWrapper (the V8.0 path). The in-tree LGFX
+// wrapper introduced in #157 left the TFT dark on USB-only-powered
+// Pockets (root cause not yet pinned down); the DisplayWrapper library
+// path is the only one that keeps the panel alive.
 #include "DisplayWrapper.h"
+#include "m32logo_aa.h"          // pre-rendered anti-aliased boot-splash logo (white-on-black)
 DisplayWrapper display;
 #endif
 
@@ -77,7 +86,7 @@ uint8_t bottomLine = 0;
 const int8_t MorseOutput::maxPos = NoOfLines - NoOfVisibleLines;
 int8_t MorseOutput::relPos = MorseOutput::maxPos;
 
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
 
 #define lora_width 6        /// a simple logo that shows when we operate with loRa, stored in XBM format
 #define lora_height 11
@@ -602,6 +611,33 @@ const int  dutyCycleZero = 0;
 
 ////// Display functions
 
+// Idempotency cache for the very common "clearStatusLine() followed by
+// printOnStatusLine(true, 0, str)" pattern used by the main menu and the
+// preferences menu on every encoder click. Without this, the white flash
+// between the clear and the reprint is visible as a flicker. We defer the
+// actual clear until the next printOnStatusLine call: if it would
+// reproduce the currently-visible text at xpos=0, we skip both ops.
+namespace {
+    bool   statusClearPending = false;   // clearStatusLine was called, not yet flushed
+    String statusLineCache;              // text last drawn via printOnStatusLine at xpos=0
+    bool   statusLineStrong  = false;    // strong flag for that cached text
+
+    // Paint the full-width white background, respecting the battery icon's
+    // right-side reserved area. Extracted so clearStatusLine() and the
+    // deferred-clear path inside printOnStatusLine() stay in sync.
+    void paintStatusBackground() {
+        display.setFont(DialogInput_plain_12);
+        display.setColor(WHITE);
+#ifdef CONFIG_MCP73871
+        if (MorseOutput::batteryIconVisible)
+            display.fillRect(0, 0, display.getWidth() - 34, SCROLL_TOP);
+        else
+#endif
+            display.fillRect(0, 0, display.getWidth(), SCROLL_TOP);
+        display.setColor(BLACK);
+    }
+}
+
 void MorseOutput::initDisplay()
 {
 #ifdef OLED_RST
@@ -611,22 +647,39 @@ void MorseOutput::initDisplay()
   digitalWrite(OLED_RST, HIGH);
 #endif
   display.init();
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   if (MorsePreferences::leftHanded)
 #else
   if (!MorsePreferences::leftHanded)
 #endif
     display.flipScreenVertically();
   display.clear();
+  // Screen was just wiped (e.g. by MorseGameMode::exit reinitialising the
+  // panel after a game). Drop any cached status-line state so the next
+  // printOnStatusLine actually repaints rather than short-circuiting.
+  statusClearPending = true;
+  statusLineCache    = "";
 }
 
 
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
+// M6: the active theme's CW-transcription colour, the OK/ERR result colours, and
+// its background, captured by setTheme() and applied by printOnScroll() when
+// drawing MORSE_* / OK_RESULT / ERR_RESULT styled text.
+static uint16_t currentMorseColor = 0xFFFF;
+static uint16_t currentOkColor    = 0x07E0;
+static uint16_t currentErrColor   = 0xF800;
+static uint16_t currentThemeBg    = 0x0000;
+
 void MorseOutput::setTheme (uint8_t theme) {
   //DEBUG("Theme: " + String(theme));
   display.setTheme(MorsePreferences::themeList[theme].foreground,
                    MorsePreferences::themeList[theme].background);
+  currentMorseColor = MorsePreferences::themeList[theme].morse;
+  currentOkColor    = MorsePreferences::themeList[theme].ok;
+  currentErrColor   = MorsePreferences::themeList[theme].err;
+  currentThemeBg    = MorsePreferences::themeList[theme].background;
 }
 
 #endif
@@ -634,6 +687,11 @@ void MorseOutput::setTheme (uint8_t theme) {
 void MorseOutput::clearDisplay() {
     display.clear();
     display.display();
+    // Whole screen was wiped; the status-line cache no longer reflects
+    // what's on screen. Force the next printOnStatusLine to repaint its
+    // full background by treating it as if clearStatusLine was just called.
+    statusClearPending = true;
+    statusLineCache    = "";
 #ifdef CONFIG_MCP73871
     batteryDisplayDirty = true;
     batteryIconVisible = false;
@@ -646,7 +704,7 @@ void MorseOutput::refreshDisplay()
 }
 
 uint8_t MorseOutput::getScrollTop() {
-#ifndef CONFIG_DISPLAYWRAPPER
+#ifndef CONFIG_TFT
   return 15;
 #else
   display.setFont(DialogInput_plain_12);
@@ -772,7 +830,7 @@ void MorseOutput::printToScroll_internal(FONT_ATTRIB style, const String& text, 
     stripped = text;   // stripped always holds the working copy
   }
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   int textTooLong = (screenPos + l > display.getWidth()/display.getStringWidth("A"));
 #else
   int textTooLong = (screenPos + l > NoOfCharsPerLine);
@@ -783,7 +841,7 @@ void MorseOutput::printToScroll_internal(FONT_ATTRIB style, const String& text, 
     pos = 0;  screenPos = 0; lastStyle = REGULAR;
   }
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
   // After a wrap to a new line, discard a leading space (word-wrap artefact, LCD only)
   if (screenPos == 0 && l > 0 && stripped[0] == ' ') {
     stripped.remove(0, 1);
@@ -799,13 +857,30 @@ void MorseOutput::printToScroll_internal(FONT_ATTRIB style, const String& text, 
     pos += l;
     textBuffer[bottomLine][pos] = (char) 0;                 // add 0 character
   } else {
-    if (style == lastStyle)  {                                // not regular, but we have no change in style!
-      ///DEBUG("lastStyle :" + t);
-      //pos -= 1;                                               // go one pos back to overwrite style marker
-      memcpy(&textBuffer[bottomLine][pos], t.c_str(), l);  // copy the string of characters
+    if (style == lastStyle)  {                                // not regular, but we have no change in style
+      // The previous emphasized chunk in this same style ended with a
+      // trailing style marker. To MERGE this new chunk with that one
+      // (so the renderer sees a single emphasized region rather than
+      // toggling style off-then-on between them) we overwrite that
+      // trailing marker with our new text and emit a fresh trailing
+      // marker after it. Without this, callers that write same-styled
+      // text in many small chunks — e.g. the QSO Bot's char-by-char
+      // display — end up with markers between every chunk, which the
+      // renderer interprets as alternating style toggles (every other
+      // char flips back to REGULAR).
+      if (pos > 0 && textBuffer[bottomLine][pos - 1] == (char) style) {
+        --pos;                                                // erase previous closing marker
+      } else {
+        // Defensive fallback: REGULAR text was inserted after the
+        // previous emphasized chunk (which doesn't update lastStyle),
+        // so the buffer doesn't end with our marker. Open a fresh
+        // emphasized region.
+        textBuffer[bottomLine][pos++] = (char) style;
+      }
+      memcpy(&textBuffer[bottomLine][pos], t.c_str(), l);
       pos += l;
-      textBuffer[bottomLine][pos++] = (char) style;           // add the style marker
-      textBuffer[bottomLine][pos] = (char) 0;                 // add 0 character
+      textBuffer[bottomLine][pos++] = (char) style;           // new closing marker
+      textBuffer[bottomLine][pos] = (char) 0;
     } else {
       //DEBUG("NOTlastStyle :" + t);
       textBuffer[bottomLine][pos++] = (char) style;           // add the style marker at the beginning
@@ -874,7 +949,7 @@ void MorseOutput::refreshScrollLine(int bufferLine, int displayLine) {
   uint8_t charsPrinted;
 
   display.setColor(BLACK);
-  #ifdef CONFIG_DISPLAYWRAPPER
+  #ifdef CONFIG_TFT
   display.fillRect(0, SCROLL_TOP + displayLine * LINE_HEIGHT , display.getWidth()-1, LINE_HEIGHT); // black out the line on screen
   #else
   display.fillRect(0, SCROLL_TOP + displayLine * LINE_HEIGHT , display.getWidth()-1, LINE_HEIGHT+1); // black out the line on screen
@@ -882,7 +957,7 @@ void MorseOutput::refreshScrollLine(int bufferLine, int displayLine) {
   #endif
   for (int i = 0; (c = textBuffer[bufferLine][i]) ; ++i) {
     // if (c == ' ') DEBUG("Blank!");
-    if (c < 5)   {         /// a flag
+    if (c <= ERR_RESULT)   {         /// a style marker (1..ERR_RESULT)
       if (irFlag)         /// at the end of an emphasized string
       {
             //DEBUG("irFl>>" + temp + "<<");
@@ -923,17 +998,20 @@ uint8_t MorseOutput::printOnScroll(uint8_t line, FONT_ATTRIB how, uint8_t xpos, 
   uint8_t w;
   int x, y;
 
-  if (how > BOLD)
+  boolean inverse = (how == INVERSE_REGULAR || how == INVERSE_BOLD);
+  boolean bold    = (how & BOLD) || how == OK_RESULT || how == ERR_RESULT;
+
+  if (inverse)
     display.setColor(WHITE);
   else
     display.setColor(BLACK);
 if (small) {
-if (how & BOLD)
+if (bold)
       display.setFont(DialogInput_bold_12);
     else
       display.setFont(DialogInput_plain_12);
   } else {
-    if (how & BOLD)
+    if (bold)
       display.setFont(DialogInput_bold_15);
     else
       display.setFont(DialogInput_plain_15);
@@ -948,16 +1026,28 @@ if (how & BOLD)
   y = SCROLL_TOP + line * LINE_HEIGHT;
 
   // clear the print area
-  #ifdef CONFIG_DISPLAYWRAPPER
+  #ifdef CONFIG_TFT
   display.fillRect(x,  y, w, LINE_HEIGHT);
   #else
   display.fillRect(x,  y, w, LINE_HEIGHT+1);
   #endif
 
-  if (how > BOLD)
+  if (inverse)
     display.setColor(BLACK);
   else
     display.setColor(WHITE);
+  #ifdef CONFIG_TFT
+  // M6: CW transcription (MORSE_*) draws in the theme's Morse colour. Weight was
+  // already chosen above via (how & BOLD); here we override only the text colour,
+  // leaving the just-filled theme background intact. drawString() honours the
+  // last setTextColor(), so this sticks for exactly this string.
+  if (how == MORSE_REGULAR || how == MORSE_BOLD)
+    DisplayWrapper::getLGFX()->setTextColor(currentMorseColor, currentThemeBg);
+  else if (how == OK_RESULT)
+    DisplayWrapper::getLGFX()->setTextColor(currentOkColor, currentThemeBg);
+  else if (how == ERR_RESULT)
+    DisplayWrapper::getLGFX()->setTextColor(currentErrColor, currentThemeBg);
+  #endif
 
   display.drawString(x, y, mystring);
   display.display();
@@ -1067,7 +1157,7 @@ void MorseOutput::displayBatteryStatus(int v) {    /// v in millivolts!
 #endif
 #endif
   printOnScroll(2, REGULAR, 0, s);
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
     #define batt_x 220
     #define batt_width 70
     #define batt_h (LINE_HEIGHT - 4)
@@ -1243,8 +1333,7 @@ void MorseOutput::updateBatteryDisplay() {
 void MorseOutput::clearBatteryIcon() {
     if (!batteryIconVisible) return;
 
-    lgfx::LGFX_Device* lcd = display.getLGFX();
-    if (!lcd) return;
+    lgfx::LGFX_Device* lcd = DisplayWrapper::getLGFX();
 
     const int bodyW = 26, iconH = 16, nubW = 4, margin = 2;
     int ix = lcd->width() - bodyW - nubW - margin;
@@ -1343,7 +1432,7 @@ void MorseOutput::displayEmptyBattery(void (*f)()) {                            
   }
 }
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 #define leftBoundary 56
 #define logoWidth 14
 #else
@@ -1409,10 +1498,56 @@ void MorseOutput::dispWifiLogo() {     // display a small logo in the top right 
   display.display();
 }
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
+// Boot-splash tuning (tweakable):
+#ifndef M32_LOGO_STEPS
+#define M32_LOGO_STEPS     40              // animation frames — more = smoother (1 = none)
+#endif
+#ifndef M32_LOGO_STEP_MS
+#define M32_LOGO_STEP_MS   16              // ms paced between frames — higher = calmer
+#endif
+
 void MorseOutput::dispM32Logo() {
-  display.setColor(BLACK);
-  display.drawXbm(1, 30, M32c_width, M32c_height, M32c_bits);
+  // Theme-independent boot splash: a pre-rendered anti-aliased "M32 Pocket" logo
+  // (white-on-black 8-bit grayscale, m32logo_aa.h) grows smoothly out of the centre
+  // and eases to rest at its native size (z = 1.0, drawn 1:1, so the resting logo is
+  // pixel-crisp).
+  //
+  // Pre-rendering the AA offline sidesteps this board's two limits: there is no read
+  // line (TFT_MISO=-1, so a runtime-AA push would fringe black) and no PSRAM (so a
+  // large AA buffer won't allocate this late in boot). The asset already carries its
+  // anti-aliasing and is drawn opaque on a black screen — no read-back, small buffer.
+  // Growth is monotonic (easeOutCubic) so opaque frames never leave ghost edges.
+  auto *lcd = DisplayWrapper::getLGFX();
+  lcd->fillScreen(TFT_BLACK);
+  LGFX_Sprite logo(lcd);
+  logo.setColorDepth(16);
+  if (logo.createSprite(M32_AA_W, M32_AA_H)) {
+    // expand the 8-bit grayscale asset into the 16bpp sprite (grey → RGB565; grey is
+    // colour-order agnostic, so no byte-swap concerns)
+    for (int y = 0; y < M32_AA_H; ++y)
+      for (int x = 0; x < M32_AA_W; ++x) {
+        uint8_t v = M32logo_aa[y * M32_AA_W + x];
+        logo.drawPixel(x, y, logo.color565(v, v, v));
+      }
+    logo.setPivot(M32_AA_W / 2.0f, M32_AA_H / 2.0f);
+    const float cx = lcd->width()  / 2.0f;
+    const float cy = lcd->height() / 2.0f;
+    for (int i = 1; i <= M32_LOGO_STEPS; ++i) {
+      float t   = (float)i / M32_LOGO_STEPS;
+      float inv = 1.0f - t;
+      float e   = 1.0f - inv * inv * inv;   // easeOutCubic: grows, then settles gently
+      float z   = e;                        // ends at 1.0 → asset drawn 1:1 (crisp)
+      if (z < 0.02f) z = 0.02f;
+      logo.pushRotateZoom(lcd, cx, cy, 0.0f, z, z);
+      delay(M32_LOGO_STEP_MS);
+    }
+    logo.deleteSprite();
+  } else {
+    // fallback: the original 1-bit logo at native size, white on black
+    lcd->drawXBitmap((lcd->width() - M32c_width) / 2, (lcd->height() - M32c_height) / 2,
+                     M32c_bits, M32c_width, M32c_height, TFT_WHITE, TFT_BLACK);
+  }
   display.setColor(WHITE);
   display.setFont(DialogInput_bold_12);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
@@ -1428,7 +1563,21 @@ void MorseOutput::dispM32Logo() {
 
 
 void MorseOutput::printOnStatusLine(boolean strong, uint8_t xpos, const String& string) {    // place a string onto the status line; chars are 7px wide = 18 chars per line
-  //DEBUG ("LINE_HEIGHT: " + LINE_HEIGHT);
+  // Fast path: deferred clear + identical full-line text → already on
+  // screen, skip both operations entirely.
+  if (xpos == 0 && statusClearPending &&
+      statusLineCache == string && statusLineStrong == strong) {
+    statusClearPending = false;
+    resetTOT();
+    return;
+  }
+
+  // Honour any pending clearStatusLine before drawing.
+  if (statusClearPending) {
+    paintStatusBackground();
+    statusClearPending = false;
+  }
+
   if (strong)
     display.setFont(DialogInput_bold_12);
   else
@@ -1441,6 +1590,17 @@ void MorseOutput::printOnStatusLine(boolean strong, uint8_t xpos, const String& 
   display.drawString(xpos * display.getStringWidth("A"), 0, string);
   display.setColor(WHITE);
   display.display();
+
+  // Only full-line writes (xpos==0) become the cached value; partial
+  // updates (WPM digits, keyer mode, etc.) invalidate the cache since
+  // the visible text is no longer a single known string.
+  if (xpos == 0) {
+    statusLineCache  = string;
+    statusLineStrong = strong;
+  } else {
+    statusLineCache = "";
+  }
+
   resetTOT();
   #ifdef CONFIG_MCP73871
   //  batteryDisplayDirty = true;    // redraw icon on next updateBatteryDisplay
@@ -1450,16 +1610,11 @@ void MorseOutput::printOnStatusLine(boolean strong, uint8_t xpos, const String& 
 
 
 void MorseOutput::clearStatusLine() {
-    display.setFont(DialogInput_plain_12);
-    display.setColor(WHITE);
-#ifdef CONFIG_MCP73871
-    if (batteryIconVisible)
-        display.fillRect(0, 0, display.getWidth() - 34, SCROLL_TOP);
-    else
-#endif
-        display.fillRect(0, 0, display.getWidth(), SCROLL_TOP);
-    display.setColor(BLACK);
-    display.display();
+    // Defer the actual paint to the next printOnStatusLine. If that call
+    // reprints the same text, both ops collapse to a no-op (no flicker).
+    // All in-tree clearStatusLine callers immediately follow with a
+    // printOnStatusLine, so the deferral is always honoured.
+    statusClearPending = true;
 }
 
 /// clear all visible lines of the scroll area
@@ -1476,7 +1631,7 @@ void MorseOutput::clearLine(uint8_t line) {                                     
   y = SCROLL_TOP + line * LINE_HEIGHT;
   l = display.getWidth()-1;
   display.setColor(BLACK);
-  #ifdef CONFIG_DISPLAYWRAPPER
+  #ifdef CONFIG_TFT
   display.fillRect(0, y, l, LINE_HEIGHT);
   #else
   display.fillRect(0, y, l, LINE_HEIGHT+1);

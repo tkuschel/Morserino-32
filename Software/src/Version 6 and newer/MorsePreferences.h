@@ -39,6 +39,12 @@ extern String cleanUpProSigns( String &input );
 //extern int16_t batteryVoltage();
 //extern int16_t volt;
 extern void updateTimings();
+// Phase F/L6: value-only speed/volume cores (clamp + timings/codec + serial
+// protocol, no drawing). Interactive modes that own their own HUD — the games —
+// route in-game speed/volume through these instead of poking the prefs directly,
+// so timings/codec/protocol stay consistent without touching the classic line.
+extern void changeSpeedValue(int t);
+extern void changeVolumeValue(int t);
 
 extern int IRAM_ATTR checkEncoder();
 
@@ -125,10 +131,13 @@ namespace MorsePreferences
   extern boolean useEspNow;
   extern uint8_t wlanChoice;
   
-  #ifdef CONFIG_DISPLAYWRAPPER
+  #ifdef CONFIG_TFT
   struct themes {
     uint16_t foreground;
     uint16_t background;
+    uint16_t morse;            // M6: colour for CW transcription text (per theme)
+    uint16_t ok;               // M6: echo-trainer OK result colour (green, per theme)
+    uint16_t err;              // M6: echo-trainer ERR result colour (red, per theme)
   };
   extern themes themeList[];                 // theme for display wrapper
   #endif
@@ -182,6 +191,9 @@ namespace MorsePreferences
   extern  prefPos loraTrxOptions[];
   extern  prefPos wifiTrxOptions[];
   extern  prefPos extTrxOptions[];
+#ifdef CONFIG_QSO_BOT
+  extern  prefPos qsoBotOptions[];
+#endif
   extern  prefPos decoderOptions[];
   extern  prefPos allOptions[];
 
@@ -197,6 +209,9 @@ namespace MorsePreferences
   extern int loraTrxOptionsSize;
   extern int wifiTrxOptionsSize;
   extern int extTrxOptionsSize;
+#ifdef CONFIG_QSO_BOT
+  extern int qsoBotOptionsSize;
+#endif
   extern int decoderOptionsSize;
   extern int allOptionsSize;
 
@@ -211,6 +226,8 @@ namespace MorsePreferences
   String getValueLine(prefPos);
   int getValue(prefPos);
   boolean adjustKeyerPreference(prefPos);
+  void editPlayerIdentity(prefPos pos);
+  void resetGameScores();
   void readPreferences(const char* repository);
   void readScreenPref();
   void readVoltagePref();

@@ -1318,7 +1318,7 @@ hohem WLAN-„Rauschen" – wenn der primäre Kanal nicht korrekt
 funktioniert, versuche es mit dem sekundären Kanal.
 
 Die Kanäle werden über die Einstellung **Trx Channel** ausgewählt, siehe
-Abschnitt **6.2.6 Einstellungen für das Senden und Dekodieren**.
+Abschnitt **6.2.6 Einstellungen zum Senden, Dekodieren und QSO Bot**.
 
 #### Verwendung von WLAN mit einem Access Point (WLAN-Router) {-}
 
@@ -1374,14 +1374,127 @@ einen FM-Transceiver zu tasten oder CW über das Internet zu verwenden
 (iCW – dieses Protokoll verwendet Mumble als Audioaustauschprotokoll).
 Über Bluetooth kannst du dich auch mit einem Computer verbinden und
 über diesen mit VBand, einem weiteren internetbasierten CW-Dienst
-(siehe Abschnitt **6.2.1 Allgemeine Einstellungen** für die
-VBand-Bluetooth-Einstellung).
+(siehe Abschnitt **6.2.2 Einstellungen zu Key, Paddles und Keyer** für
+die VBand-Bluetooth-Einstellung).
 
 Alle CW-Signale, die als Audio über den Audioeingang eingehen, werden
 dekodiert und auf dem Display angezeigt. Ein externer Transceiver, der
 über den Anschluss „to Tx" angeschlossen ist, wird vom Keyer getastet;
 alternativ kann der Audioausgang am Line-Out-Anschluss in einen Computer
 oder FM-Transceiver eingespeist werden.
+
+### QSO Bot
+
+Der QSO Bot ist ein simulierter CW-QSO-Partner, mit dem du vollständige,
+realistische Funkverbindungen ohne Sender üben kannst. Der Bot sendet in
+Morsecode und liest mit, was du zurücktastest, und reagiert „in character" –
+so kannst du das Hin und Her einer echten Verbindung in deinem eigenen Tempo
+einüben, ohne auf Sendung zu gehen. Es handelt sich ausschließlich um einen
+Übungspartner: Der Bot **sendet niemals über LoRa, WLAN oder den externen
+Sender** – er ertönt nur über den lokalen Mithörton und kann daher jederzeit
+gefahrlos verwendet werden.
+
+Es gibt drei QSO-Typen, wählbar im Menü unter **Transceiver → QSO Bot**:
+
+-   **SOTA/POTA** – eine Verbindung im Rahmen von „Summits On The Air" oder
+    „Parks On The Air" (Rufzeichen, Rapport, Gipfel-/Parkreferenz). Der Bot
+    wählt zufällig SOTA oder POTA und teilt dies in seinem CQ-Ruf mit.
+-   **Standard** – ein klassisches „Rubber-Stamp"-QSO: Rapport, Name und
+    QTH, dann Stationsangaben (Rig, Antenne, Wetter, Alter), dann die
+    Verabschiedung.
+-   **Contest** – eine fortlaufende Folge sehr kurzer Contest-QSOs. Das
+    Austauschformat wird mit der Einstellung **Contest Type** festgelegt
+    (siehe **6.2.6 Einstellungen zum Senden, Dekodieren und QSO Bot**):
+    **CQ WW** (Rapport + CQ-Zone) oder **WPX/Sprint** (Rapport +
+    Seriennummer).
+
+#### Anzeige und Bedienung {-}
+
+Der QSO Bot verwendet dieselbe Bildschirmdarstellung und Bedienung wie der
+CW Keyer und die Transceiver-Modi. Was der Bot sendet, erscheint in
+**Fettschrift**; was du tastest, wird dekodiert angezeigt. Die obere
+Statuszeile zeigt den Keyer-Modus und deine Geschwindigkeit. Durch Drehen des
+ENCODERs änderst du die Geschwindigkeit (oder die Lautstärke, nach einem
+kurzen Druck auf die FN-Taste); ein langer Druck auf FN wechselt in den
+Scroll-Modus, um den bisherigen Verlauf nachzulesen; ein Doppelklick auf den
+ENCODER-Knopf öffnet die Einstellungen; ein langer Druck auf den
+ENCODER-Knopf verlässt den QSO Bot.
+
+#### Wer ruft CQ {-}
+
+Wenn du einen QSO-Typ startest, hört der Bot einige Sekunden lang zu. **Rufst
+du CQ**, antwortet dir der Bot – du bist der Aktivierer (SOTA/POTA) bzw. die
+rufende Station (Contest). **Bleibst du still**, ruft der Bot CQ und du
+antwortest ihm. Dafür gibt es keine Einstellung; wie auf dem Band übernimmt
+derjenige die Führung, der CQ ruft. Der Bot verwendet für jede Verbindung ein
+neues Rufzeichen, sodass du viele verschiedene Rufzeichen zum Mitschreiben
+bekommst.
+
+#### Tasten zum Bot {-}
+
+Der Bot ist bewusst tolerant, damit sich das Üben natürlich anfühlt und nicht
+wie ein Diktat:
+
+-   Er erkennt deine Informationen innerhalb der üblichen
+    Gesprächsfüllwörter – `de oe1wkl k`, `r ur 599 599 bk`, `qth vienna
+    vienna` funktionieren alle; die Füllwörter werden ignoriert.
+-   Rapporte können als volle Zahlen oder als **Cut Numbers** gesendet werden
+    (`5nn` für 599, `t` für 0, `a` für 1, `n` für 9).
+-   **Der Bot wartet, bis du fertig bist.** Er antwortet erst, wenn du ein
+    Ende-der-Übergabe-Zeichen sendest (`k`, `<sk>`, `<ar>`, `bk`, `73`) oder
+    einige Sekunden pausierst – er tastet dir nicht dazwischen, während du
+    noch sendest.
+-   **Um einen Fehler zu korrigieren**, sende `<err>` (eine Reihe von Dits)
+    oder `eeee` und danach die korrigierte Information; der Bot verwirft das
+    Zurückgenommene und übernimmt die neue Fassung.
+-   **Um eine Wiederholung zu erbitten**, sende `agn` oder `rpt`; der Bot
+    wiederholt seine letzte Übergabe. Du kannst auch nach einem einzelnen
+    Punkt fragen – `rpt rst`, `rpt call`, `rpt qth` – und der Bot wiederholt
+    nur diesen.
+
+Tastest du etwas, das der Bot nicht zuordnen kann, oder verstummst du
+mittendrin, reagiert er wie ein echter Operator – `agn agn`, `qrz?` oder
+durch Wiederholung seiner letzten Übergabe – statt einfach stehen zu bleiben.
+
+#### SOTA / POTA {-}
+
+Der Bot spielt eine Gipfel- oder Parkaktivierung. Ruft er CQ, ist er der
+Aktivierer und sendet eine Gipfel-/Parkreferenz, die zum Land seines
+Rufzeichens passt (`oe/st-002` für ein österreichisches Rufzeichen,
+`w6/ss-001` für ein US-Rufzeichen usw.); du rufst als Jäger (Chaser) an und
+tauschst Rapporte aus. Rufst **du** CQ, bist du der Aktivierer und der Bot
+jagt dich. Gelegentlich entpuppt sich die Station, die auf deinen CQ-Ruf
+antwortet, ebenfalls als Aktivierer und sendet ihre eigene Referenz – eine
+Summit-to-Summit- bzw. Park-to-Park-Verbindung (sie kann sogar SOTA-zu-POTA
+sein). Eine SOTA/POTA-Sitzung ist eine einzelne Verbindung; der Bot
+verabschiedet sich, wenn sie beendet ist.
+
+#### Standard {-}
+
+Dies ist ein vollständiges „Rubber-Stamp"-QSO im Plauderstil, in drei Runden:
+zuerst Rapport, Name und QTH; dann Stationsangaben (Rig, Antenne, Wetter,
+Alter); dann die Verabschiedung. Der Bot sendet realistische eigene Angaben
+und schreibt deine mit. Er erkennt deine Informationen an den
+**Feld-Schlüsselwörtern** – `name`, `qth`, `rig`, `ant`, `wx`, `age` – sodass
+es egal ist, ob du sie mit `=`, mit `es` oder gar nicht trennst, und Werte
+dürfen aus mehreren Wörtern bestehen (`rig icom 7300`). Er merkt sich deinen
+Namen und verwendet ihn, wenn er zu dir zurückkommt (`fb dr willi`). Eine
+gültige Verbindung braucht einen Rapport; enthält deine erste Übergabe also
+Name und QTH, aber keinen RST, fragt der Bot `pse ur rst?`, bevor er
+fortfährt.
+
+#### Contest {-}
+
+Contest-Übung ist eine fortlaufende Folge sehr kurzer QSOs. Stelle zuerst
+**Contest Type** ein: **CQ WW** tauscht Rapport plus CQ-Zone aus (der Bot
+verwendet die echte Zone für das Land seines Rufzeichens), **WPX/Sprint**
+tauscht Rapport plus Seriennummer aus. Sobald ein QSO beendet ist, ruft die
+rufende Station erneut CQ – ruft der Bot, tut er dies mit einem neuen
+Rufzeichen; rufst du, antwortet eine neue Station auf deinen nächsten CQ-Ruf.
+Die Sitzung läuft weiter, solange du Stationen arbeitest, und endet
+automatisch nach etwa fünfzehn Sekunden ohne Antwort (niemand antwortet auf
+den CQ-Ruf des Bots, oder du rufst nicht erneut CQ). Drücke eine Taste, um
+nach dem Ende der Sitzung zum Menü zurückzukehren.
 
 ## CW Decoder
 
@@ -1399,8 +1512,7 @@ Empfänger stammen. Der Ton sollte bei ca. 700 Hz liegen. Optional gibt
 es einen recht scharfen Filter (in Software implementiert), der nur
 Töne in einem engen Bereich um 700 Hz erkennt und alle anderen
 ignoriert. Dieser wird durch Auswahl der Einstellung **Narrow**
-aktiviert (siehe Abschnitt **6.2.6 Einstellungen für das Senden und
-Dekodieren**).
+aktiviert (siehe Abschnitt **6.2.6 Einstellungen zum Senden, Dekodieren und QSO Bot**).
 
 Die Statuszeile unterscheidet sich etwas von den anderen Modi. Der
 Drehgeber befindet sich immer im Lautstärke-Einstellmodus – die
@@ -1416,8 +1528,7 @@ Keyer-Modus-Anzeige der anderen Modi.
 Die aktuell erkannte Geschwindigkeit wird in der Statuszeile als WpM
 angezeigt.
 
-Dieser Modus hat wenige Einstellungen (siehe Abschnitt **6.2.6
-Einstellungen für das Senden und Dekodieren**); die wichtigste ist
+Dieser Modus hat wenige Einstellungen (siehe Abschnitt **6.2.6 Einstellungen zum Senden, Dekodieren und QSO Bot**); die wichtigste ist
 vielleicht die Möglichkeit, die Filterbandbreite des Audio-Decoders
 zwischen schmal (ca. 150 Hz) und breit (ca. 600 Hz) umzuschalten. Für
 Signale aus einem Transceiver (wo andere Signale in der Nähe sein
@@ -1431,8 +1542,8 @@ Tonfrequenz nicht so nahe an 700 Hz liegen.
 
 Der Morserino Pocket bietet jetzt CW-basierte Spiele, die das Lernen
 und Üben des Morsecodes unterhaltsamer gestalten. Die Spiele sind unter
-dem Menüpunkt „**Games**" zu finden. Derzeit ist „Morse Invaders" das
-erste verfügbare Spiel.
+dem Menüpunkt „**Games**" zu finden. Derzeit sind vier Spiele verfügbar:
+**Morse Invaders**, **Fight the Pileup**, **Radio Cave** und **Morsel**.
 
 ### Morse Invaders
 
@@ -1514,8 +1625,6 @@ ENCODER langer Druck: Spiel beenden und zum Morserino-Menü zurückkehren.
 FN kurzer Druck: Zwischen Geschwindigkeits- und Lautstärkeregelung
 umschalten.
 
-FN langer Druck: Beendet das Spiel ebenfalls.
-
 #### Punktewertung {-}
 
 Basispunkte pro zerstörtem Zeichen: 10, multipliziert mit mehreren
@@ -1572,10 +1681,13 @@ Koch-Lektion erhöhen, um mehr Zeichen in den Pool aufzunehmen.
 ### Fight the Pileup
 
 **Fight the Pileup** ist ein CW-Trainingsspiel, bei dem du Rufzeichen
-unter Zeitdruck kopieren und eingeben musst – ganz wie beim Arbeiten
-eines echten Pileups auf dem Band. Das Spiel gibt zufällige Rufzeichen
-als CW-Audio aus, und du musst sie nach Gehör dekodieren und korrekt
-zurückgeben, bevor die Zeit abläuft.
+unter Zeitdruck kopieren und zurückgeben musst – ganz wie beim Arbeiten
+eines echten Pileups auf dem Band. Rufzeichen kommen als CW-Audio; du
+dekodierst sie nach Gehör und gibst sie zurück, bevor sie aufgeben. Es
+kann allein gegen das Gerät oder als Mehrspieler-Match „letzte Station,
+die übrig bleibt" gegen andere M32 Pockets im selben Raum gespielt werden.
+
+Fight the Pileup ist nur auf dem M32 Pocket verfügbar.
 
 #### Spielstart {-}
 
@@ -1593,146 +1705,179 @@ gemerkt.
 
 #### Die Lobby {-}
 
-Nach der Eingabe deiner Identität gelangst du zum Lobby-Bildschirm,
-auf dem du das Spiel konfigurieren kannst:
+In der Lobby richtest du ein Spiel ein, bevor du den Pileup betrittst:
 
 - **ENCODER**: Schwierigkeitsgrad wählen (EASY, NORMAL, HARD, EXPERT)
 - **Klick**: Zwischen Einzelspieler- und Mehrspielermodus umschalten
 - **FN (kurzer Klick)**: Zwischen Rufzeichen- und Namensanzeige
   umschalten (wenn beides gesetzt ist)
-- **Paddles**: Pileup betreten (Aufgabe startet)
+- **Paddles**: Pileup betreten (Code-Aufgabe startet)
 - **Langer Druck**: Zum Menü zurückkehren
 
-Der Schwierigkeitsgrad beeinflusst die verfügbare Antwortzeit, die
-Anzahl der Timeouts pro Leben und wie schnell neue Aufgaben erscheinen:
+Der Schwierigkeitsgrad beeinflusst, wie lange jeder Anrufer auf dich
+wartet, wie viele Drops ein Leben kosten, wie schnell neue Anrufer
+erscheinen und wann der Rufzeichen-Hinweis eingeblendet wird:
 
-| Level  | Timeout | Drops pro Leben |
-|--------|---------|-----------------|
-| EASY   | 45 Sek  | 5               |
-| NORMAL | 30 Sek  | 4               |
-| HARD   | 20 Sek  | 3               |
-| EXPERT | 12 Sek  | 2               |
+| Level  | Anrufer-Timeout | Drops pro Leben | Abspiele bis Hinweis |
+|--------|-----------------|-----------------|----------------------|
+| EASY   | 45 Sek          | 5               | 3                    |
+| NORMAL | 30 Sek          | 4               | 3                    |
+| HARD   | 20 Sek          | 3               | 2                    |
+| EXPERT | 12 Sek          | 2               | 1                    |
+
+Im **Mehrspielermodus** zeigt die Lobby zusätzlich den ESP-NOW-**Kanal**
+(Standard oder Secondary) sowie eine aktuelle Liste der gefundenen
+Mitspieler. Alle Geräte müssen auf denselben **Kanal** eingestellt sein,
+um sich gegenseitig zu sehen – das ist die LoRa/ESP-NOW-Kanal-Einstellung.
 
 #### Code-Aufgabe (Eingangstor) {-}
 
-Bevor du den Pileup betrittst, musst du einen kurzen zufälligen Code
-(4 Zeichen) auf deinen Paddles eingeben. Dies dient als Aufwärmübung
-und bestätigt, dass deine Paddles funktionieren. Jedes korrekt
-eingegebene Zeichen leuchtet grün auf. Bei einem Fehler wird die
-Sequenz zurückgesetzt – versuche es einfach erneut.
-
-Langer Druck zum Abbrechen und Rückkehr zur Lobby.
+Bevor der Pileup beginnt, gibst du einen kurzen zufälligen Code (4 Zeichen)
+auf deinen Paddles ein – eine Aufwärmübung, die zugleich bestätigt, dass
+deine Paddles funktionieren. Jedes korrekte Zeichen leuchtet grün auf;
+bei einem Fehler wird die Sequenz zurückgesetzt, versuche es einfach
+erneut. Du kannst hier bereits deine Gebe-**Geschwindigkeit** einstellen:
+der **ENCODER** ändert die WpM, **FN** schaltet auf Lautstärke um, und der
+aktuelle Wert wird angezeigt. Langer Druck bricht ab und kehrt zur Lobby
+zurück.
 
 #### Spielablauf {-}
 
-Nach Bestehen der Code-Aufgabe beginnt der Pileup. Das Spiel präsentiert
-dir einen kontinuierlichen Strom zufälliger Rufzeichen, die du dekodieren
-und zurückgeben musst.
+Rufzeichen („Anrufer") treffen ein und reihen sich in eine Warteschlange
+ein. Du bearbeitest immer den **ältesten** zuerst – das ist der aktive
+Anrufer, angezeigt unter **DEFEND!**
 
-**So funktioniert es:**
+1. **Hören.** Der aktive Anrufer wird als CW-Audio mit einer etwas
+   tieferen Tonhöhe als dein Mithörton abgespielt, damit du ihn von
+   deiner eigenen Eingabe unterscheiden kannst. Er wiederholt sich
+   automatisch.
 
-1. **Hören:** Ein Rufzeichen wird als CW-Audio mit einer anderen
-   Tonhöhe als dein Mithörton abgespielt, damit du es von deiner
-   eigenen Eingabe unterscheiden kannst. Das Rufzeichen wiederholt
-   sich automatisch.
+2. **Dekodieren.** Identifiziere das Rufzeichen nach Gehör. Nach einigen
+   Abspielungen (3 bei Easy und Normal, 2 bei Hard, 1 bei Expert) wird
+   der Text als Hinweis eingeblendet – versuche aber, schneller zu sein.
 
-2. **Dekodieren:** Versuche, das Rufzeichen nach Gehör zu identifizieren.
-   Nach dem 3. Abspielen erscheint ein Texthinweis auf dem Bildschirm –
-   versuche aber, es vorher zu erkennen!
+3. **Zurückgeben.** Gib das Rufzeichen mit den Paddles ein; deine
+   dekodierten Zeichen erscheinen währenddessen. Eine Pause in Wortlänge
+   (etwa eine Sekunde) gibt automatisch ab, oder klicke den ENCODER, um
+   sofort abzugeben.
 
-3. **Antwort eingeben:** Gib das gehörte Rufzeichen mit den Paddles ein.
-   Die eingegebenen Zeichen erscheinen auf dem Bildschirm.
+4. **Ergebnis.**
+   - **Richtig** – der Anrufer ist erledigt, du bekommst Punkte und
+     verdienst sofort einen **Angriff** (siehe unten).
+   - **Falsch** – das CW wird erneut abgespielt, sodass du denselben
+     Anrufer nochmals versuchen kannst; innerhalb seines Zeitfensters
+     gibt es keine Begrenzung der Versuche.
 
-4. **Automatische Abgabe:** Deine Antwort wird automatisch nach einer
-   Wortlängen-Pause (ca. 1 Sekunde Stille) abgegeben. Du kannst
-   auch den ENCODER klicken, um sofort abzugeben.
+Jeder Anrufer hat sein eigenes Zeitfenster, angezeigt durch den
+Fortschrittsbalken (grün → gelb → rot). Das Fenster startet, sobald der
+Anrufer zum *aktiven* wird, sodass jeder Anrufer eine faire, volle Chance
+erhält. Läuft das Fenster des aktiven Anrufers ab, gilt er als **Drop**.
+Und wenn sich Anrufer schneller stapeln, als du sie abarbeitest, geben
+die hinten Wartenden schließlich **auf** („MISSED!") – das zählt ebenfalls
+als Drop. Den Stapel kurz zu halten ist die eigentliche Herausforderung.
 
-5. **Ergebnis:**
-   - **Richtig:** Kurzes „OK!"-Aufleuchten mit Punktebonus, dann
-     startet automatisch die nächste Aufgabe.
-   - **Falsch:** „WRONG"-Aufleuchten. Das CW wird erneut abgespielt,
-     sodass du es mit demselben Rufzeichen nochmals versuchen kannst.
-   - **Timeout:** Wenn der Fortschrittsbalken abläuft, bevor du
-     korrekt geantwortet hast, verlierst du Punkte und eine neue
-     Aufgabe beginnt.
+#### Angriffe verdienen und geben {-}
 
-#### Bildschirm-Layout {-}
+Jeder korrekt kopierte Anrufer bringt dir einen **Angriff** ein. Der
+Pileup pausiert, und eine magentafarbene Aufforderung – **YOUR ATTACK —
+SEND:** gefolgt von einem Rufzeichen – erscheint. Gib dieses Rufzeichen
+mit den Paddles, um es zu „senden". Im **Einzelspielermodus** bringt das
+einfach einen Bonus; im **Mehrspielermodus** wird das Rufzeichen auf einen
+anderen Spieler abgefeuert und landet in *dessen* Stapel als Anrufer, den
+er abwehren muss (siehe *Mehrspielermodus* unten). Während du einen Angriff
+gibst, ist der Pileup eingefroren – es kommen keine Anrufer und keiner
+läuft ab – du kannst dir also Zeit lassen. Mit dem Senden des Angriffs
+kehrst du zur Abwehr zurück.
 
-Von oben nach unten:
+#### Leben und Game Over (Einzelspieler) {-}
 
-- **HUD-Leiste:** Leben (rote Punkte), dein Rufzeichen/Name,
-  aktueller Punktestand, Streak-Multiplikator
-- **Fortschrittsbalken:** Verbleibende Zeit für die aktuelle Aufgabe
-  (grün → gelb → rot)
-- **Aufgabenbereich:** Abspiel-Zähler und Hinweis (nach 3 Abspielungen)
-- **Eingabebereich:** Deine eingegebene Antwort
-- **Statistiken:** Richtige und falsche Antworten
-- **Statusleiste:** Aktuelle WpM und Lautstärke
+Du startest mit **3 Leben**. Alle *N* Drops (die „Drops pro Leben" deines
+Schwierigkeitsgrads) kosten ein Leben; sowohl abgelaufene Anrufer als auch
+„MISSED"-Aufgaben zählen. Wenn dein letztes Leben weg ist, endet das Spiel,
+und der Game-Over-Bildschirm zeigt deinen Punktestand, abgewehrte vs.
+verlorene Rufzeichen, die Genauigkeit, die beste Streak und die verwendeten
+Einstellungen. Drücke **Klick**, um erneut zu spielen (zurück zur Lobby),
+oder **Langer Druck**, um zum Hauptmenü zurückzukehren.
 
 #### Punktewertung {-}
 
 | Ereignis | Punkte |
 |----------|--------|
-| Richtige Antwort | +100 Basis + 10 × Streak-Bonus |
-| Falsche Antwort  | −50 |
-| Timeout          | −25 |
+| Richtiger Anrufer | +100 Basis + 10 × Streak |
+| Angriff gesendet  | +50 |
+| Falsche Antwort   | −50 |
+| Abgelaufener Anrufer | −25 |
 
-Der Streak-Zähler erhöht sich bei jeder aufeinanderfolgenden richtigen
-Antwort und wird bei jeder falschen Antwort oder jedem Timeout
-zurückgesetzt.
-
-#### Leben {-}
-
-Du startest mit 3 Leben. Alle N Timeouts kosten dich ein Leben (N
-hängt vom Schwierigkeitsgrad ab). Wenn alle Leben verloren sind,
-endet das Spiel und deine Endpunktzahl wird angezeigt.
+Deine **Streak** wächst mit jedem korrekten Kopieren und wird bei einer
+falschen Antwort oder einem abgelaufenen Anrufer zurückgesetzt; eine höhere
+Streak bringt mehr Bonus pro Kopie – und lässt neue Anrufer schneller
+eintreffen.
 
 #### Steuerung im Spiel {-}
 
 | Steuerung | Aktion |
 |-----------|--------|
-| **Paddles** | Antwort eingeben |
-| **ENCODER** | WpM-Geschwindigkeit oder Lautstärke anpassen (siehe FN-Umschaltung) |
+| **Paddles** | Antwort (oder Angriffs-Rufzeichen) eingeben |
+| **ENCODER** | WpM-Geschwindigkeit oder Lautstärke anpassen (siehe FN) |
 | **Klick** (ENCODER) | Antwort sofort abgeben |
-| **FN kurzer Klick** | ENCODER zwischen WpM und Lautstärke umschalten |
-| **Langer Druck** (ENCODER oder FN) | Spiel beenden |
+| **FN (kurzer Klick)** | ENCODER zwischen **Geschwindigkeit** und **Lautstärke** umschalten |
+| **Langer Druck** (ENCODER) | Spiel beenden |
 
-Die Statusleiste zeigt mit einem `<`-Pfeil an, welchen Parameter der
-ENCODER gerade steuert.
+Die untere Statuszeile zeigt den Wert, den der ENCODER gerade steuert –
+`15 wpm` oder `Vol 12` – und mit **FN** wechselst du zwischen beiden.
+
+#### Mehrspielermodus {-}
+
+Im Mehrspielermodus spielen zwei oder mehr M32 Pockets im selben Raum
+gleichzeitig und greifen sich gegenseitig an; der **letzte Spieler, der
+noch im Spiel ist, gewinnt**.
+
+**Einrichtung.** Öffne auf jedem Gerät Fight the Pileup und schalte in der
+Lobby mit **Klick** auf **Multiplayer** um. Achte darauf, dass alle Geräte
+denselben **Kanal** anzeigen (Standard oder Secondary). Innerhalb weniger
+Sekunden listet jedes Gerät die anderen unter MULTIPLAYER auf. Wenn alle
+bereit sind, startet jeder Spieler durch Eingeben auf den Paddles – die
+Spieler müssen nicht exakt gleichzeitig starten.
+
+**Angriffe.** Immer wenn du einen Anrufer korrekt kopierst und deinen
+verdienten Angriff gibst, wird dieses Rufzeichen zufällig an einen der
+anderen Spieler gesendet. Auf dessen Gerät erscheint es als Anrufer mit der
+Kennzeichnung **FROM** plus deinem Rufzeichen, in Magenta, und muss wie
+jeder andere abgewehrt werden; ebenso landen die Rufzeichen, die die
+anderen senden, in *deinem* Stapel. Bot-Anrufer kommen ebenfalls weiterhin,
+sodass der Druck nie nachlässt.
+
+**Gegner.** Während des Pileups zeigt ein kompakter Streifen am oberen
+Bildschirmrand die anderen Spieler und ihre verbleibenden Leben, die sich
+live aktualisieren, wenn sie Schaden nehmen; ein ausgeschiedener Spieler
+wird abgedunkelt dargestellt.
+
+**Gewinnen.** Wenn du dein letztes Leben verlierst, bist du draußen; dein
+Bildschirm zeigt die Game-Over-Statistik und wartet auf das Ergebnis. Der
+letzte noch lebende Spieler gewinnt: dessen Gerät zeigt **YOU WIN!**, und
+jedes andere Gerät zeigt **WINNER:** gefolgt vom Rufzeichen des Gewinners.
+Von dort kehrt **Klick** zur Lobby für ein weiteres Match zurück, und
+**Langer Druck** beendet das Spiel.
 
 #### Tipps für Anfänger {-}
 
-- **Beginne auf Schwierigkeitsgrad EASY.** Der 45-Sekunden-Timeout
-  gibt dir genug Zeit, das Rufzeichen mehrmals zu hören.
+- **Beginne auf EASY.** Das 45-Sekunden-Fenster lässt dich jeden Anrufer
+  mehrmals hören, bevor du dich festlegst.
 
-- **Kein Stress.** Warte auf den Texthinweis nach 3 Abspielungen,
-  wenn du dir nicht sicher bist. Warten kostet keine Punkte – nur
-  Timeouts.
+- **Nutze den Hinweis.** Wenn du unsicher bist, warte, bis das Rufzeichen
+  eingeblendet wird – Warten kostet keine Punkte, nur das Fallenlassen von
+  Anrufern.
 
-- **WpM reduzieren.** Nutze den ENCODER, um die Geschwindigkeit zu
-  senken, wenn das CW zu schnell ist.
+- **Langsamer werden.** Senke die WpM mit dem ENCODER; Anrufer werden mit
+  deiner eigenen Gebegeschwindigkeit abgespielt.
 
-- **Auf die Struktur achten.** Rufzeichen folgen Mustern: meist ein
-  1–3-buchstabiges Präfix, eine Ziffer, dann ein 1–3-buchstabiges
-  Suffix (z.B. DL1ABC, W3XY, VK2GR).
+- **Lerne die Muster.** Rufzeichen folgen Mustern: ein 1–3-buchstabiges
+  Präfix, eine Ziffer, dann ein 1–3-buchstabiges Suffix (z.B. DL1ABC, W3XY,
+  VK2GR).
 
-- **Falsche Antworten erlauben einen Neuversuch.** Bei einem Fehler
-  wird dasselbe Rufzeichen wiederholt – du hast unbegrenzte Versuche
-  innerhalb der Timeout-Zeit.
-
-#### Game Over {-}
-
-Wenn alle Leben verloren sind, zeigt der Game-Over-Bildschirm die
-Endstatistik:
-
-- **Score:** Gesamtpunktzahl
-- **Defended / Dropped:** Richtige Antworten vs. Timeouts
-- **Accuracy:** Prozentualer Anteil richtiger Antworten
-- **Best streak:** Längste Folge aufeinanderfolgender richtiger Antworten
-- **WPM / Difficulty:** Die verwendeten Einstellungen
-
-Drücke **Klick**, um erneut zu spielen (zurück zur Lobby), oder
-**Langer Druck**, um zum Hauptmenü zurückzukehren.
+- **Halte den Stapel kurz.** Besonders im Mehrspielermodus: arbeite Anrufer
+  zügig ab – wächst die Warteschlange, geben die ältesten Anrufer auf und
+  kosten dich Leben.
 
 ### Radio Cave
 
@@ -1756,8 +1901,8 @@ Radio Cave ist nur auf dem M32Pocket verfügbar.
 #### Spielstart {-}
 
 Navigiere im Hauptmenü zu **Games → Radio Cave**. Nach einem kurzen
-Lobby-Bildschirm kannst du einen Buchstaben auf den Paddles eingeben
-oder den ENCODER klicken, um das Spiel zu betreten. Wenn ein
+Lobby-Bildschirm kannst du einen Buchstaben auf den Paddles eingeben, um das Spiel zu
+betreten. Wenn ein
 gespeicherter Spielstand vorhanden ist, wird dieser automatisch geladen
 und du setzt dort fort; andernfalls beginnt ein neues Spiel.
 
@@ -1916,6 +2061,275 @@ ein und bestätige mit `Y`, um neu zu starten.
 Wenn du das Spiel erfolgreich abschließt, zeigt ein Siegesbildschirm
 deine Gesamtschrittanzahl. Herzlichen Glückwunsch – die Nachricht wurde
 endlich empfangen.
+
+### Morsel
+
+**Morsel** ist ein Worträtsel-Spiel: Du musst ein verborgenes Wort
+erraten, mit zwei Hinweisen — ein zufällig gewählter Buchstabe des
+Wortes wird im Klartext am Display angezeigt, und das ganze Wort wird
+in Morsecode wiedergegeben. Der CW-Hinweis beginnt schnell — 48 WpM —
+und wird mit jedem nicht gelösten Versuch um 5 WpM langsamer, bis
+hinunter auf 18 WpM. Wer mit weniger Versuchen löst, wird belohnt; das
+Spiel umfasst 10 Wörter, gewertet wird die niedrigste angepasste
+Gesamtzeit.
+
+Morsel ist nur am M32Pocket verfügbar.
+
+#### Starten des Spiels {-}
+
+Navigiere im Hauptmenü zu **Games → Morsel**. Die Lobby zeigt die
+aktuell eingestellte **Koch-Lektion** und **Wortlänge** sowie die
+verfügbaren Bedienelemente. Berühre ein Paddle, um zu starten.
+
+#### Einstellungen in der Lobby {-}
+
+Zwei Einstellungen können direkt in der Lobby geändert werden:
+
+| Bedienelement | Wirkung |
+|---------------|---------|
+| **Encoder (Drehknopf)** | Koch-Lektion ändern — nur für diese Spielsitzung; deine Trainingseinstellung wird beim Verlassen wiederhergestellt |
+| **FN kurz drücken** | Wortlänge durchschalten: `3`, `4`, `max 4`, `5`, `max 5`, `6`, `max 6`. Über Stromzyklen hinweg gespeichert. `max N` bedeutet beliebige Länge von 3 bis N. |
+| **FN lang drücken** | Persistente Highscore-Tabelle anzeigen |
+| **Encoder-Klick oder Paddle-Berührung** | Spiel starten |
+| **Encoder lang drücken** | Zurück zum Hauptmenü |
+
+Wörter werden aus der kombinierten Morserino-Wortliste und der
+Liste der Amateurfunk-Abkürzungen gezogen, gefiltert nach Länge und
+aktueller Koch-Lektion (jeder Buchstabe jedes Kandidatenwortes muss
+sich unter den bereits gelernten Zeichen befinden). Sind zu wenige
+Kandidaten verfügbar, zeigt Morsel den Hinweis „Word pool too small"
+mit einer empfohlenen Mindest-Koch-Lektion und kehrt zur Lobby zurück.
+
+#### Bildschirmlayout {-}
+
+Während des Spiels zeigt der Querformat-Bildschirm:
+
+- **Oben links:** die aktuelle Rundennummer (1, 2, 3 …) für das
+  aktuelle Wort.
+- **Oben Mitte:** Spielfortschritt, z. B. `3/10`.
+- **Oben rechts:** die aktuelle CW-Hinweisgeschwindigkeit in WpM
+  (gelb hervorgehoben, sobald die 18-WpM-Untergrenze erreicht ist).
+- **Mitte:** eine Reihe von Buchstabenfeldern, eines pro Position.
+  Der enthüllte Buchstabe wird in Cyan mit cyanfarbenem Rahmen
+  gezeigt, sodass die Position des Hinweises auf einen Blick
+  erkennbar ist.
+- **Statuszeile unten:** die aktuelle Nachricht („Listen and key
+  the word", „Correct!", „Try again", „Skipped" …).
+- **Hinweiszeile unten:** `click = skip   hold = quit`.
+- **Untere HUD-Zeile:** Koch-Lektion · deine **key**-WpM ·
+  Lautstärke. Das aktive Encoder-Ziel (key WpM oder Lautstärke) ist
+  gelb hervorgehoben.
+
+#### Spielablauf pro Wort {-}
+
+Ein neues Wort wählt zufällig einen Buchstaben zur Enthüllung und
+spielt das ganze Wort einmal mit der aktuellen Rundengeschwindigkeit
+ab. Anschließend gibst du **das vollständige Wort mit den Paddles ein**,
+einschließlich des enthüllten Buchstabens. Während du gibst, erscheint
+jeder dekodierte Buchstabe in seinem Feld. Der CW-Hinweis wird
+stummgeschaltet, sobald du mit dem Geben beginnst.
+
+Eine lange Pause zwischen den Wörtern — sobald deine Eingabe die volle
+Wortlänge erreicht hat — bestätigt die Eingabe. Jedes Feld wird dann
+gefärbt:
+
+| Farbe | Bedeutung |
+|-------|-----------|
+| **Grün** | Richtiger Buchstabe an richtiger Position |
+| **Rot** | Falscher Buchstabe |
+| **Grau** | Position des enthüllten Buchstabens falsch gegeben (zur Erinnerung wird der ursprünglich enthüllte Buchstabe gezeigt) |
+
+Hast du weniger als die volle Wortlänge eingegeben, **löst die Pause
+nicht aus** — das ist beabsichtigt, damit du mitten im Wort denken
+oder korrigieren kannst, ohne dass die Eingabe ungewollt vorzeitig
+abgeschickt wird.
+
+Ist nicht jedes Feld grün, wird dasselbe Wort in der nächsten Runde
+um 5 WpM langsamer abgespielt und du versuchst es erneut. Sind alle
+Felder grün, ist das Wort gelöst; der Bildschirm zeigt kurz die
+Lösungszeit und die Anzahl der Versuche, dann startet ein neues Wort
+wieder bei 48 WpM.
+
+#### Fehlerkorrektur {-}
+
+Das Prosign `<err>` (8 Punkte hintereinander, auch als `<hh>` notiert)
+löscht das zuletzt eingegebene Zeichen — die übliche Konvention auf
+dem Band, eine Eingabe abzubrechen und neu zu senden. Durch das Löschen
+fällt deine Eingabe wieder unter die volle Wortlänge und die
+automatische Bestätigung wird deaktiviert, sodass du in Ruhe denken
+und neu eingeben kannst.
+
+#### Schwieriges Wort überspringen {-}
+
+Wenn ein Wort selbst bei 18 WpM partout nicht erkennbar ist, drücke
+den **Encoder-Knopf (Mode-Taste)** kurz, um es zu überspringen. Das
+aktuelle Wort wird beendet, ein Hinweis `Skipped (-60s)` erscheint,
+und das Spiel geht weiter. Der Skip fügt einen festen **60-Sekunden-
+Aufschlag** zur Gesamtzeit hinzu, plus 5 Sekunden für jeden Versuch,
+den du vor dem Skip bereits abgegeben hattest.
+
+#### Verhalten bei Inaktivität {-}
+
+Wenn ein CW-Hinweis abgespielt ist und du noch nicht zu geben begonnen
+hast:
+
+- Nach etwa **12 Sekunden** ohne Eingabe wiederholt Morsel den
+  CW-Hinweis automatisch (mit derselben Geschwindigkeit — die Runde
+  zählt **nicht** weiter).
+- Nach etwa **60 Sekunden** Gesamtinaktivität kehrt Morsel
+  schonend zur eigenen Lobby zurück (das Spiel wird abgebrochen, es
+  wird keine Wertung gespeichert).
+
+Jede Eingabe, Encoder-Drehung oder Tastenbetätigung setzt beide
+Zeitgeber zurück, ebenso wie den globalen Abschalt-Timeout — eine
+aktiv spielende Person wird also nie aus dem laufenden Spiel
+geworfen.
+
+#### Bedienelemente im Spiel {-}
+
+| Bedienelement | Aktion |
+|---------------|--------|
+| **Paddles** | Eingabe der Vermutung |
+| **Encoder** | Eigene **Gebegeschwindigkeit** (key-WpM) einstellen — unabhängig von der Hinweisgeschwindigkeit |
+| **FN kurz drücken** | Encoder zwischen key-WpM und Lautstärke umschalten |
+| **FN lang drücken** | Zurück zum Hauptmenü |
+| **Mode-Taste kurz drücken** | Aktuelles Wort überspringen (60 s Strafzeit) |
+| **Mode-Taste lang drücken** | Zurück zum Hauptmenü |
+
+Der CW-Hinweis wird stets in der für die Runde vorgesehenen
+Geschwindigkeit gespielt, unabhängig von deiner Gebegeschwindigkeit —
+die beiden sind voneinander unabhängig.
+
+#### Bewertung {-}
+
+Für jedes Wort:
+
+- Die **Zeit** wird vom ersten CW-Abspielen bis zur korrekten Eingabe
+  gemessen.
+- **+5 Sekunden Aufschlag pro abgegebener Eingabe** (ab dem ersten
+  Versuch). Wer mit weniger Versuchen löst, wird belohnt.
+- Ein **übersprungenes** Wort fließt mit der bis dahin verstrichenen
+  Zeit zuzüglich der 60-Sekunden-Strafe und 5 Sekunden pro vorher
+  bereits abgegebenen Versuch in die Wertung ein.
+
+Die Gesamtbewertung ist die Summe der angepassten Zeiten aller 10
+Wörter. Niedriger ist besser.
+
+#### Spielende und Highscores {-}
+
+Nach 10 Wörtern erscheint ein **GAME OVER**-Bildschirm mit:
+
+- der angepassten Gesamtzeit im Format `M:SS`,
+- gelösten vs. übersprungenen Wörtern,
+- der Gesamtzahl der Versuche,
+- und — falls deine Gesamtzeit eine Position in der persistenten
+  Top-7-Liste belegt — einem Banner `NEW HIGH SCORE — rank N`.
+
+Ein Klick auf den Encoder öffnet die **Highscore-Tabelle**: die
+sieben besten Ergebnisse, sortiert nach angepasster Gesamtzeit,
+gespeichert im nichtflüchtigen Speicher. Jede Zeile zeigt Rang, Zeit,
+Wortlängeneinstellung (`max 4`, `5`, …), die Koch-Lektion (z. B.
+`K12`) sowie das Verhältnis gelöst/gesamt. Dein letzter qualifizierter
+Eintrag wird grün hervorgehoben.
+
+Die Highscore-Tabelle kann jederzeit auch aus der Lobby aufgerufen
+werden — mit einem langen Druck auf die **FN**-Taste.
+
+#### Tipps {-}
+
+- 48 WpM sind bewusst schnell — sie belohnen Decoder, die schnelles
+  CW kopieren können. Schaffst du es in der ersten Runde nicht, warte
+  auf die nächste Wiedergabe; sie ist 5 WpM langsamer.
+
+- Der enthüllte Buchstabe ist ein starker Anker — sobald seine
+  Position bekannt ist, ist das Wort schon stark eingegrenzt. Achte
+  auf seine cyanfarbene Positionsnummer unter dem Feld.
+
+- Lösen im **ersten Versuch** ist deutlich wertvoller als langsames
+  Lösen über mehrere Runden — der Aufschlag von 5 s pro Versuch
+  summiert sich schnell.
+
+- Höhere Koch-Lektion einstellen, falls du wiederholt die Meldung
+  „Pool zu klein" siehst: 3-stellige Wörter brauchen Lektion 8,
+  4-stellige Lektion 10, 5-stellige Lektion 14, 6-stellige Lektion 16
+  (bei der Standard-Morserino-Zeichenreihenfolge).
+
+- Korrigiere ruhig (`<err>` = 8 Punkte) — die Zeit läuft zwar weiter,
+  aber eine falsch abgegebene Eingabe kostet 5 s; meist ist es
+  günstiger, den Fehler zu beheben als die Eingabe abzuschicken und
+  es erneut zu versuchen.
+
+#### Multiplayer {-}
+
+Morsel kann auch als synchrones Mehrspieler-Match gegen andere
+M32 Pockets im gleichen Raum gespielt werden: Ein Gerät übernimmt die
+Rolle des **Servers**, beliebig viele weitere die der **Clients**.
+Alle Spieler geben dieselben 10 Wörter zeitgleich ein; am Ende
+verteilt der Server eine sortierte Rangliste, die auf allen Geräten
+zugleich erscheint.
+
+##### Mehrspieler-Spiel starten {-}
+
+Wähle nach **Games → Morsel** im ersten Bildschirm **Multiplayer**.
+Anschließend stehen zwei Rollen zur Wahl:
+
+| Rolle | Aktion |
+|-------|--------|
+| **Start as Server** | Öffnet die Server-Lobby. Stelle die Koch-Lektion mit dem Encoder und die Wortlänge mit kurzem FN-Druck ein; in der Liste erscheinen die beigetretenen Spieler, sobald sie sich verbinden. Ein Klick auf den Encoder startet das Spiel. |
+| **Join a game** | Öffnet die Client-Lobby. Sucht den Beacon eines Servers und zeigt dessen Einstellungen (Länge, Koch-Lektion, Wortanzahl), sobald einer gefunden ist. Warte, bis der Server-Bediener startet. |
+
+Ein langer Druck auf den Encoder geht eine Ebene zurück: von einer Server- oder Client-Lobby zur Rollenauswahl, von dort zur Auswahl Einzel-/Mehrspieler und schließlich aus Morsel heraus.
+
+Deine Kennung im Netz wird aus dem mit „Fight the Pileup" geteilten
+**Rufzeichen / Spielernamen** übernommen. Ist nichts gesetzt, wird
+automatisch eine kurze MAC-basierte Kennung verwendet — setze dein
+Rufzeichen (`playerCall`) einmalig über das M32 Configuration Tool,
+um in der Rangliste unter diesem Namen aufzuscheinen.
+
+##### Ablauf {-}
+
+Der Server wählt 10 Wörter aus dem Pool und überträgt sie an alle
+Clients; anschließend spielt jedes Gerät jedes Wort lokal mit der
+gewohnten Einzelspieler-Mechanik durch (CW-Hinweis, Paddle-Eingabe,
+farbcodiertes Ergebnis). Geschwindigkeits-Schema, Bewertung,
+Fehlerkorrektur, Inaktivitätsverhalten und Überspringen funktionieren
+identisch wie im Einzelspieler.
+
+Sobald ein Spieler die 10 Wörter abgeschlossen hat, sendet sein Gerät
+das Endergebnis (angepasste Zeit, Versuchszahl, gelöste Wörter) an
+den Server. Der Server spielt selbst als gleichberechtigter Teilnehmer
+mit — kein Host-Vorteil — und nimmt sein eigenes Ergebnis in die
+Rangliste auf.
+
+##### Ranglisten-Bildschirm {-}
+
+Sobald irgendein Spieler fertig ist, sendet der Server fortlaufend
+einen sortierten **Ranking**-Bildschirm, den alle Geräte identisch
+darstellen:
+
+| Spalte | Bedeutung |
+|--------|-----------|
+| Rang | Platz in der Wertung (1 ist am besten) |
+| Spieler | Rufzeichen oder Name |
+| Zeit | Angepasste Gesamtzeit in Sekunden |
+| Gelöst | Gelöste Wörter von 10 |
+| Versuche | Gesamtzahl der Versuche im Match |
+
+Deine eigene Zeile ist gelb hervorgehoben. Die Anzeige aktualisiert
+sich laufend, sobald weitere Spieler fertig werden; bis zu sechs
+Spitzeneinträge werden gleichzeitig angezeigt, ein `+N more`-Hinweis
+erscheint, wenn mehr Spieler ihr Ergebnis gemeldet haben. Ein
+Encoder-Klick führt zurück in die Multiplayer-Lobby; ein langer Druck
+verlässt Morsel.
+
+##### Hinweise zum Funkverkehr {-}
+
+Das Protokoll ist **ESP-NOW-Broadcast** auf einem festen Kanal —
+weder ein Router noch Internet oder ein Pairing-Vorgang sind nötig;
+alle Geräte in Funkreichweite empfangen einander direkt. Die weiche
+Obergrenze liegt bei **20 Spielern** pro Match. Ein Client, der die
+Verbindung zum Server verliert, wird nach etwa 8 Sekunden aus der
+angezeigten Rangliste entfernt.
 
 ## WiFi Functions
 
@@ -2305,6 +2719,28 @@ du deinen Morserino über USB mit einem Computer mit Chrome, Edge oder
 Opera verbindest und den Anweisungen in **Anhang 7 Einrichten von
 M32-Einstellungen über einen Browser** folgst.
 
+## Rufzeichen, Name und Spielstände
+
+Zwei Einstellungen sagen dem Morserino, wer du bist. **Call Sign** (Rufzeichen)
+und **Op Name** (Name) werden von den Spielen (Fight the Pileup, Morsel) und
+vom QSO-Bot verwendet. Wählst du einen dieser Einträge im Einstellungsmenü,
+öffnet sich ein Texteditor am Bildschirm (er funktioniert am OLED und am LCD
+gleich):
+
+- **ENCODER drehen** wählt ein Zeichen,
+- **ENCODER klicken** fügt es zum Text hinzu,
+- **FN-Taste klicken** löscht das letzte Zeichen,
+- **langer Druck** auf eine der Tasten beendet die Eingabe.
+
+Call Sign akzeptiert Buchstaben, Ziffern und den Schrägstrich; Op Name
+akzeptiert Buchstaben und ein Leerzeichen. Der aktuelle Wert wird neben der
+Einstellung angezeigt.
+
+**Reset Scores** löscht die gespeicherten Bestenlisten und den Spielfortschritt
+aller Spiele (Morse Invaders, Morsel und Radio Cave). Beim Auswählen erscheint
+eine Bestätigung: **FN** drücken zum Bestätigen, oder den ENCODER klicken zum
+Abbrechen.
+
 ## Liste aller Morserino-32-Einstellungen
 
 **Fett gedruckte Werte** sind Standard- oder empfohlene Werte. Wenn du
@@ -2325,9 +2761,8 @@ daher für alle Modi des Morserino-32.
 | **Quick Start** | Ermöglicht es, die anfängliche Menüauswahl zu umgehen: Bei aktivierter Option (**ON**) startet das Gerät beim Einschalten sofort mit dem zuletzt aktiven Modus. | ON / **OFF** |
 | **Output Case** | Ändert die Groß-/Kleinschreibung der dekodierten Zeichen auf dem Display (und auch bei der seriellen Ausgabe über USB sowie bei der Bluetooth-Tastaturausgabe!) von Kleinbuchstaben auf GROSSBUCHSTABEN. | **lower** / UPPER |
 | **Headphone Output** | (Nur für M32Pocket) Legt fest, was passiert, wenn Kopfhörer oder ein anderes Gerät an den Kopfhörerausgang angeschlossen werden. Mit der Standardeinstellung erfolgt die Ausgabe über den Kopfhörer und der Lautsprecher wird stummgeschaltet. Mit „*line-out*" erfolgt die Ausgabe mit voller Lautstärke über den Kopfhörerausgang und normal über den Lautsprecher. Mit „*l-o: Var. Vol.*" ähnlich, aber die Ausgabe über den Stecker erfolgt mit der eingestellten Lautstärke. Mit „*l-o: Lsp Muted*" erfolgt die Ausgabe über den Stecker mit voller Lautstärke und der Lautsprecher wird stummgeschaltet. | **Phones** / line-out / l-o: Var. Vol. / l-o: Lsp Muted **Achtung: Bei Verwendung der line-out-Optionen niemals Kopfhörer anstecken! Da die Wiedergabe mit voller Lautstärke erfolgen kann, könnte dies das Gehör oder die Kopfhörer beschädigen!** |
-| **Theme** | (Nur für Geräte mit Farbbildschirm, z.B. M32Pocket) Du kannst ein Farbthema für das Display einstellen, sodass du nicht auf „Weiß auf Schwarz" beschränkt bist. | **Plain** (= Weiß auf Schwarz) / Blues / ePaper / Mandarin / Darkroom / Veggie / Garnet / Lemonade / Complements |
+| **Theme** | (Nur für Geräte mit Farbbildschirm, z.B. M32Pocket) Du kannst ein Farbthema für das Display einstellen, sodass du nicht auf „Weiß auf Schwarz" beschränkt bist. Jedes Thema (auch Plain) zeigt zudem Morsetext in einer eigenen Akzentfarbe — abgehoben von Menü- und Statustext — und stellt die OK/ERR-Rückmeldung im Echo Trainer in Grün bzw. Rot dar. | **Plain** (= Weiß auf Schwarz) / Blues / ePaper / Mandarin / Darkroom / Veggie / Garnet / Lemonade / Complements |
 | **Invader Orient.** | (Nur für M32Pocket) Du kannst die bevorzugte Displayausrichtung für Spiele wie Morse Invaders wählen: Hochformat (Standard) oder Querformat. Bei Auswahl von Querformat wird die Linkshänder-Ausrichtung verwendet, wenn diese in der Hardware-Konfiguration eingestellt ist. | **Portrait** / Landscape |
-| **BLT Kbd Output** | Legt fest, was über Bluetooth gesendet wird (Bluetooth-Tastaturfunktion). Die Option **VBand** ermöglicht die Verwendung des Morserinos als VBand-Dongle (zu VBand siehe *https://hamradio.solutions/vband/*). **Decoded** sendet alle dekodierten Zeichen nicht nur ans Display, sondern auch über Bluetooth. Die Option **Generic Keyboard** macht im Wesentlichen dasselbe wie **Decoded**, sendet aber zusätzlich den Code für die „**Enter**"-Taste (neue Zeile), wenn du \<KA> (neue Nachricht) eingibst, und für die „**Backspace**"-Taste, wenn du \<ERR> eingibst (d.h. 8 Dits). Der M32 erscheint immer als US-Tastatur (QWERTY-Layout) – dies ist bei der Konfiguration am angeschlossenen Computer zu berücksichtigen! | **Nothing** / Vband Keying / Decoded / Vband+Decoded / Generic Kbd |
 | **Serial Output** | Legt fest, was an die serielle Schnittstelle (USB-Anschluss) gesendet wird; unterschieden wird zwischen getasteten Zeichen (**Keyer** – Ausgabe des iambischen Keyers), dekodierten Zeichen (**Decoded** – vom CW-Decoder oder einer Handtaste) und „generierten" Zeichen (**Generated** – vom CW-Generator usw., auch von der Empfangsseite der LoRa- oder WiFi-Transceiver-Modi). **Nothing** sendet keines dieser Zeichen (bestimmte System- oder Fehlermeldungen können aber trotzdem erscheinen), **All** sendet alles. Über das M32-Serielle-Protokoll können zudem weitere Informationen gesendet und empfangen werden, wenn die angeschlossene Computersoftware dies unterstützt. Siehe auch **Anhang 8 Nutzung des seriellen Ausgangs des M32**. | Nothing / Keyer / Decoded / Keyed+Decoded / Generated / **All** (Standard seit V. 4.3) |
 
 ### Einstellungen zu Key, Paddles und Keyer
@@ -2346,6 +2781,8 @@ oder die Verwendung einer externen Handtaste relevant sind (stelle
 | **CurtisB DitT%** | Timing im Curtis-B-Modus für Dits; siehe Abschnitt **5.1 CW Keyer**. Beeinflusst auch das Verhalten im Ultimatic-Modus! | 0–100, in 5er-Schritten [**55–95**] |
 | **AutoChar Spce** | Mindestabstand zwischen den Zeichen. | Off / min. 2 / **3** / 4 dots |
 | **Latency** | Legt fest, wie lange nach der Erzeugung des aktuellen Elements (Punkt oder Strich) die Paddles „taub" sind. Bei 0 % muss das Paddle losgelassen werden, während das letzte Element noch „an" ist. Bei 87,5 % reagieren die Paddles erst nach 7/8 einer Punktlänge auf einen Druck. | Ein Wert zwischen 0 % und 87,5 %, d.h. 0/8 bis 7/8 einer Punktlänge (Standard: **50 %**, d.h. eine halbe Punktlänge). |
+| **BLT Kbd Output** | Legt fest, was über Bluetooth gesendet wird (Bluetooth-Tastaturfunktion). Die Option **VBand** ermöglicht die Verwendung des Morserinos als VBand-Dongle (zu VBand siehe *https://hamradio.solutions/vband/*). **Decoded** sendet alle dekodierten Zeichen nicht nur ans Display, sondern auch über Bluetooth. Die Option **Generic Kbd** macht im Wesentlichen dasselbe wie **Decoded**, sendet aber zusätzlich den Code für die „**Enter**"-Taste (neue Zeile), wenn du \<KA> (neue Nachricht) eingibst, und für die „**Backspace**"-Taste, wenn du \<HH> eingibst (d.h. 8 Dits). Der M32 erscheint immer als US-Tastatur (QWERTY-Layout) – dies ist bei der Konfiguration am angeschlossenen Computer zu berücksichtigen. *Die Bluetooth-Tastaturausgabe ist nur im Modus CW Keyer aktiv (siehe auch **Anhang 9**).* | **Nothing** / Vband Keying / Decoded / Vband+Decoded / Generic Kbd |
+| **BLT \<AR>** | Nur im Modus **Generic Kbd** relevant (siehe **BLT Kbd Output** oben). Legt fest, wie das \<AR>-Betriebszeichen über Bluetooth gesendet wird: als wörtliches Zeichen „**+**" oder als weicher Zeilenumbruch (Shift+Enter). | **+** / Linefeed |
 
 ### Einstellungen bezüglich der Koch-Zeichenfolge
 
@@ -2404,11 +2841,12 @@ beginnen musst!
 | **Adaptv. Speed** | Wenn auf ON gesetzt, wird die Geschwindigkeit im Modus Echo Trainer bei jeder richtigen Antwort um 1 WpM erhöht und bei jedem Fehler um 1 WpM verringert. | ON / **OFF** |
 | **Echo Speed Max** | Legt die maximale Keying-Geschwindigkeit im Modus Echo Trainer fest. Wenn du die Geschwindigkeit mit dem ENCODER über diesen Wert hinaus erhöhst oder sie durch Adaptive Speed schneller wird, bleibt die Eingabegeschwindigkeit bei diesem Maximum (so kannst du bei höheren Geschwindigkeiten kopieren als du comfortabel geben kannst). | **No limit** / 5–50 WpM (in 5-WpM-Schritten) |
 
-### Einstellungen für das Senden und Dekodieren
+### Einstellungen zum Senden, Dekodieren und QSO Bot
 
 Diese Einstellungen steuern einige Funktionen, die für das Senden
 (entweder direkt über LoRa oder WLAN oder durch Tastung eines externen
-Senders) oder für das Dekodieren von Morsezeichen verfügbar sind.
+Senders), für das Dekodieren von Morsezeichen oder für den QSO Bot
+(siehe Abschnitt **5.5.4 QSO Bot**) verfügbar sind.
 
 | Einstellung | Beschreibung | Werte |
 |---|---|---|
@@ -2417,6 +2855,17 @@ Senders) oder für das Dekodieren von Morsezeichen verfügbar sind.
 | **Trx Channel** | Wählt den (virtuellen) Kanal für LoRa oder EspNow (ein WLAN-Peer-to-Peer-Modus ohne Access Point). Bei LoRa ist dies ein virtueller Kanal; bei EspNow wird die Frequenz tatsächlich zwischen WLAN-Kanal 6 (**Standard Ch**) und 1 (**Secondary Ch**) gewechselt. Weitere Informationen zu EspNow findest du in Abschnitt **5.5.2 WiFi Trx**. | **Standard Ch** / Secondary Ch |
 | **Bandwidth** | Legt die Bandbreite fest, die der CW-Decoder verwendet (implementiert in Software als sogenannter Goertzel-Filter). **Wide** = ca. 600 Hz, **Narrow** = ca. 150 Hz; Mittenfrequenz = ca. 700 Hz. | **Wide** / Narrow |
 | **Decoded on I/O** | Normalerweise wird dekodiertes CW von einer externen Quelle (bei Verwendung eines der Transceiver-Modi oder des Decoders für Audiodekodierung) über den Lautsprecher (oder Kopfhörer) abgespielt, aber nicht an den externen Audio-E/A-Anschluss gesendet. Bei Einstellung auf „ON" wird der Ton auch an den externen Audio-E/A-Anschluss gesendet. **Beim M32Pocket wird diese Einstellung ignoriert!** | On / **Off** |
+| **Contest Type** | Nur relevant im **Contest**-Modus des QSO Bots (Abschnitt **5.5.4 QSO Bot**): welcher Contest-Austausch verwendet wird. **CQ WW** sendet 5NN + die CQ-Zone des Bot-Rufzeichens; **WPX/Sprint** sendet 5NN + eine Seriennummer. | **CQ WW** / WPX/Sprint |
+
+### Einstellungen zu Rufzeichen, Name und Spielständen
+
+Diese Punkte stehen ganz am Ende der Einstellungsliste. Die ersten beiden legen deine persönliche Identität fest, die vom Spiel **Fight the Pileup** und vom **QSO Bot** (Abschnitt **5.5.4 QSO Bot**) verwendet wird; der dritte löscht die gespeicherten Spielstände. Call Sign und Op Name können auch über USB über das M32-USB Serial-Protokoll gesetzt werden (z.B. mit einem Browser-Konfigurationstool).
+
+| Einstellung | Beschreibung | Werte |
+|---|---|---|
+| **Call Sign** | Dein eigenes Amateurfunk-Rufzeichen. Gib es mit dem Encoder und den Tasten ein. Es wird in Großbuchstaben gespeichert und als dein Stationsrufzeichen in **Fight the Pileup** und im **QSO Bot** verwendet. | bis zu 8 Zeichen (in GROSSBUCHSTABEN gespeichert) |
+| **Op Name** | Dein Operatorname (z.B. dein Vorname). Gib ihn mit dem Encoder und den Tasten ein. Er wird in Großbuchstaben gespeichert und zusammen mit deinem Rufzeichen in **Fight the Pileup** verwendet. | bis zu 8 Zeichen (in GROSSBUCHSTABEN gespeichert) |
+| **Reset Scores** | Dies ist eine Aktion, keine Einstellung: Sie löscht die gespeicherten Bestenlisten und Spielstände der Spiele — die Bestenliste von **Morse Invaders**, die Bestwerte von **Morsel** und den gespeicherten Fortschritt von **Radio Cave**. Du wirst gebeten, mit der **FN**-Taste zu bestätigen. (Fight the Pileup speichert keine dauerhafte Bestenliste und ist nicht betroffen.) | mit FN bestätigen |
 
 # Anhänge
 
@@ -2555,8 +3004,6 @@ Dieser Menüpunkt setzt alle Einstellungen auf die Werkseinstellungen
 zurück, ändert aber keine Hardware-Konfigurationseinstellungen und löscht
 oder verändert keine in Schnappschüssen gespeicherten Einstellungen.
 
----
-
 ## Anhang 2: Weitere Informationen über LoRa
 
 Wenn der Morsecode in ein LoRa-Datenpaket verpackt wird, werden Punkte,
@@ -2590,8 +3037,7 @@ sich nicht gegenseitig stören.
 Normalerweise arbeitet der M32 LoRa mit dem Sync Word 0x27 (wir nennen
 es den „Standard"-Kanal), kann aber über die Einstellung **Trx Channel**
 im Einstellungsmenü auf 0x66 (genannt „Secondary"-Kanal) umgeschaltet
-werden. Siehe Abschnitt **6.2.6 Einstellungen für das Senden und
-Dekodieren**.
+werden. Siehe Abschnitt **6.2.6 Einstellungen zum Senden, Dekodieren und QSO Bot**.
 
 #### Verwendung anderer LoRa-Frequenzbänder und/oder Frequenzen {-}
 
@@ -2627,7 +3073,6 @@ die Änderung der LoRa-Frequenzeinstellungen.
 -   HF-Ausgangsleistung: standardmäßig 14 dBm (= 25 mW), kann auf
     20 dBm (100 mW) erhöht werden
 
----
 
 ## Anhang 3: Einstellen des Audiopegels
 
@@ -2679,7 +3124,6 @@ den **Scroll-Modus des Displays**, damit du bereits weggeschrollten Text
 lesen kannst.
 :::
 
----
 
 ## Anhang 4: Aktualisieren der Firmware über WLAN für Versionen < 2.0
 
@@ -2698,7 +3142,6 @@ neuere Firmware aktualisieren – sonst entgehen dir viele neue Funktionen
 (und Fehlerbehebungen).
 :::
 
----
 
 ## Anhang 5: Aktualisieren der Firmware über USB und ein Update-Programm
 
@@ -2783,7 +3226,6 @@ Linux):
 
 `./update_m32 -p /dev/tty[...] -f m32_V8.0.bin -e`
 
----
 
 ## Anhang 6: Aktualisieren der Firmware über USB und einen Browser (Webserial)
 
@@ -2812,7 +3254,6 @@ Um die Firmware zu aktualisieren, schließe deinen Morserino-32 über USB
 an deinen Computer an, gehe zu *https://www.morserino.info*, suche die
 Seite für Firmware-Updates und **folge den Anweisungen dort**.
 
----
 
 ## Anhang 7: Einrichten von M32-Einstellungen über einen Browser und Hochladen von Textdateien
 
@@ -2897,7 +3338,6 @@ Diese Funktionen wurden durch die Implementierung eines seriellen
 Protokolls im Morserino ermöglicht; weitere Informationen findest du im
 nächsten Anhang.
 
----
 
 ## Anhang 8: Nutzung des seriellen Ausgangs des M32
 
@@ -2947,7 +3387,6 @@ zu verbessern. Derzeit gibt es vier Softwareprodukte für diesen Zweck:
 Siehe auch die Beschreibung der Einstellung **Serial Output** im
 Abschnitt **6.2.1 Allgemeine Einstellungen**.
 
----
 
 ## Anhang 9: Benutzung der Bluetooth-Tastatur-Funktion
 
@@ -2957,13 +3396,18 @@ Mobiltelefone und Tablets) senden.
 
 Dazu muss die Einstellung **BLT Kbd Output** entsprechend gesetzt werden
 (nähere Informationen zu den verfügbaren Optionen findest du im Abschnitt
-**6.2.1 Allgemeine Einstellungen**).
+**6.2.2 Einstellungen zu Key, Paddles und Keyer**).
 
+::: note
+Diese Funktion ist nur im Modus CW Keyer aktiv! Erst wenn CW Keyer gestartet wird, wird die Tastatur für PC und Tablett etc. sichtbar!
+:::
+
+::: note
 Beachte, dass der Morserino wie eine Tastatur mit US-Tastenlayout
 arbeitet – dies ist ggf. auf dem verwendeten Computer entsprechend
 einzustellen.
+:::
 
----
 
 ## Anhang 10: Gängige CW-Abkürzungen, verwendet vom Morserino-32
 

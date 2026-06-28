@@ -24,7 +24,7 @@
 
 #include "MorseGameMode.h"
 
-#ifdef CONFIG_DISPLAYWRAPPER
+#ifdef CONFIG_TFT
 
 #include <Arduino.h>
 #include <ESP32Encoder.h>
@@ -33,10 +33,12 @@
 #include "MorseOutput.h"
 #include "MorsePreferences.h"
 #include "morsedefs.h"
+#include "GamePalette.h"
 
 extern ESP32Encoder rotaryEncoder;
 extern const int    PinCLK;
 extern const int    PinDT;
+extern int          checkEncoder();
 
 // RTC-resident state for the memory-clearing reboot path. Defined in
 // m32_v6.ino; we set them and call ESP.restart() if sprite allocation
@@ -46,11 +48,17 @@ extern uint32_t rebootMagic;
 extern uint8_t  rebootMenuPtr;
 
 // Pixels removed from the long side of the panel when sizing the sprite.
-// At 170×320, trimming 16 from the long side gives a 170×304 / 304×170
-// sprite (= 103,360 bytes), comfortably under the ~106 KB largest free
-// block we observe after one game session. Decrease this only after
-// re-running the heap diagnostics on the heap-diagnostics branch and
-// confirming there's enough headroom.
+// At 170×320 and 8-bpp (1 byte/pixel, see GamePalette.h), trimming 16
+// gives a 304×170 sprite (= 51,680 bytes + palette). 304 matches the
+// games' layout width exactly, so nothing is clipped on the long edge.
+//
+// This was 28 while the sprite was 16-bpp (~99 KB), needed to keep a
+// thin ~3 KB margin against the largest free block after ESP-NOW. The
+// 8-bpp conversion halved the sprite, so we restored the full layout
+// width. Heap probes after the conversion (free / largest contiguous):
+//   clean boot          163 KB / 106 KB
+//   after sprite alloc  110 KB /  55 KB   (sprite ~52 KB)
+//   after setupESPNow   110 KB /  98 KB   → sprite + ESP-NOW: ~46 KB margin
 #ifndef MORSE_GAMEMODE_SPRITE_TRIM
 #define MORSE_GAMEMODE_SPRITE_TRIM 16
 #endif
@@ -59,6 +67,32 @@ namespace {
 
   LGFX_Sprite *sprite         = nullptr;
   bool         lastLeftHanded = false;
+
+  // RGB565 colour for each GamePaletteIndex. Order MUST match the enum in
+  // GamePalette.h. Loaded into an 8-bpp sprite's palette by allocate().
+  const uint16_t kGamePalette[PAL_COUNT] = {
+    0x0000,  // PAL_BLACK
+    0x0841,  // PAL_BG
+    0xFFFF,  // PAL_WHITE
+    0xF800,  // PAL_RED
+    0x07FF,  // PAL_CYAN
+    0xFFE0,  // PAL_YELLOW
+    0x07E0,  // PAL_GREEN
+    0x7BEF,  // PAL_GREY
+    0xBDF7,  // PAL_LIGHTGREY
+    0x528A,  // PAL_MIDBLUE
+    0x001F,  // PAL_BLUE
+    0xF81F,  // PAL_MAGENTA
+    0x2104,  // PAL_DARKGREY
+    0x0400,  // PAL_INV_LETTERS
+    0x8400,  // PAL_INV_NUMBERS
+    0x8200,  // PAL_INV_PUNCT
+    0x8010,  // PAL_INV_PROSIGN
+    0x0200,  // PAL_INV_LETTERS_B
+    0x4200,  // PAL_INV_NUMBERS_B
+    0x4100,  // PAL_INV_PUNCT_B
+    0x4008,  // PAL_INV_PROSIGN_B
+  };
 
   // Restore the Morserino menu's display state. Used both by exit() and by
   // the failure path of allocate() so that callers see a coherent menu
@@ -71,9 +105,14 @@ namespace {
     pinMode(PinDT,  INPUT_PULLUP);
     rotaryEncoder.attachHalfQuad(PinDT, PinCLK);
     rotaryEncoder.setCount(0);
+    // Resync checkEncoder()'s static oldPosition: setCount(0) zeroes the
+    // hardware, but the cached old position is whatever it was during the
+    // game. Without this, the menu's first checkEncoder() call after game
+    // exit sees a phantom step and shifts the cursor to a neighbour game.
+    (void) checkEncoder();
   }
 
-  LGFX_Sprite *allocate(int rotation, bool leftHanded) {
+  LGFX_Sprite *allocate(int rotation, bool leftHanded, uint8_t colorDepth) {
     lastLeftHanded = leftHanded;
 
     auto *lcd = DisplayWrapper::getLGFX();
@@ -104,7 +143,7 @@ namespace {
       MorseGameMode::triggerMemoryClearingReboot();
     }
     sprite->setPsram(false);
-    sprite->setColorDepth(16);
+    sprite->setColorDepth(colorDepth == 8 ? 8 : 16);
     if (!sprite->createSprite(spriteW, spriteH)) {
       // Sprite buffer allocation failed — heap is fragmented (typically
       // after a WiFi Trx session). Reboot to clear, then resume directly
@@ -113,7 +152,17 @@ namespace {
       sprite = nullptr;
       MorseGameMode::triggerMemoryClearingReboot();
     }
-    sprite->fillSprite(TFT_BLACK);
+    if (colorDepth == 8) {
+      // Load the shared game palette. createSprite() auto-creates a default
+      // grayscale palette for 8-bpp; this replaces it (create_palette frees
+      // the old one first, so no leak). PAL_BLACK is index 0, so a sprite
+      // cleared to index 0 reads as true black — consistent with the
+      // TFT_BLACK clear used by the 16-bpp path.
+      sprite->createPalette(kGamePalette, PAL_COUNT);
+      sprite->fillSprite(PAL_BLACK);
+    } else {
+      sprite->fillSprite(TFT_BLACK);
+    }
     return sprite;
   }
 
@@ -137,12 +186,20 @@ void MorseGameMode::warmup() {
   tmp.deleteSprite();
 }
 
-LGFX_Sprite *MorseGameMode::enterPortrait(bool leftHanded) {
-  return allocate(leftHanded ? 0 : 2, leftHanded);
+void MorseGameMode::applyGamePalette(LGFX_Sprite *s) {
+  // Load the shared 8-bpp game palette into a caller-owned sprite (e.g.
+  // Invaders' rotated-text tile sprite) so it matches the main game
+  // sprite's palette — index-for-index — and blits between them stay
+  // colour-correct. Single source of truth for the palette table.
+  if (s) s->createPalette(kGamePalette, PAL_COUNT);
 }
 
-LGFX_Sprite *MorseGameMode::enterLandscape(bool leftHanded) {
-  return allocate(leftHanded ? 1 : 3, leftHanded);
+LGFX_Sprite *MorseGameMode::enterPortrait(bool leftHanded, uint8_t colorDepth) {
+  return allocate(leftHanded ? 0 : 2, leftHanded, colorDepth);
+}
+
+LGFX_Sprite *MorseGameMode::enterLandscape(bool leftHanded, uint8_t colorDepth) {
+  return allocate(leftHanded ? 1 : 3, leftHanded, colorDepth);
 }
 
 void MorseGameMode::pushFrame() {
@@ -169,6 +226,16 @@ LGFX_Sprite *MorseGameMode::getSprite() {
   return sprite;
 }
 
+void MorseGameMode::drawCentred(LGFX_Sprite *s, int centreX, int y,
+                                const char *text, uint16_t color, uint16_t bg,
+                                const lgfx::IFont *font) {
+  if (font) s->setFont(font);
+  s->setTextColor(color, bg);
+  s->setTextDatum(lgfx::top_center);
+  s->drawString(text, centreX, y);
+  s->setTextDatum(lgfx::top_left);
+}
+
 [[noreturn]] void MorseGameMode::triggerMemoryClearingReboot() {
   rebootMenuPtr = MorsePreferences::menuPtr;
   rebootMagic   = 0xC0FFEE42u;
@@ -185,4 +252,4 @@ LGFX_Sprite *MorseGameMode::getSprite() {
   while (true) ;  // unreachable; placates [[noreturn]]
 }
 
-#endif // CONFIG_DISPLAYWRAPPER
+#endif // CONFIG_TFT
