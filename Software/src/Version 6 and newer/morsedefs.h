@@ -41,14 +41,14 @@ const char* const PROJECTNAME = "Morserino-32";
 const char* const COPYRIGHT = "\xc2\xa9 2018-2026";  // © in UTF-8
 
 #define VERSION_MAJOR 8
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 #define VERSION_PATCH 0
 
-#define BETA false
+#define BETA true
 #define COMPILEDATE __DATE__
 
 
-#define IGNORE_SERIALOUT false
+#define IGNORE_SERIALOUT true
 
 // if IGNORE_SERIALOUT is true, alle DEBUG messages are on serial out, even when Serial Out is active outputting characters from Keyer, Decoder etc
 
@@ -343,6 +343,9 @@ const uint8_t menuN = 43
 #endif
 #ifdef CONFIG_CW_GAME
     + 5    // Games, Morse Invaders, Fight the Pileup, Radio Cave, Morsel
+    + 1    // Trailblazer — see MorseTrailblazer.h
+    + 1    // Fox Hunt — see MorseFoxHunt.h
+    + 1    // Memory Chain — see MorseMemoryChain.h
 #endif
 #ifdef CONFIG_QSO_BOT
     + 4    // QSO Bot, SOTA/POTA, Standard, Contest
@@ -368,6 +371,11 @@ enum menuNo
 #endif
         _wifi, _wifi_mac, _wifi_config, _wifi_check, _wifi_upload,
         _wifi_update, _wifi_select, _goToSleep
+#ifdef CONFIG_CW_GAME
+        , _trailblazer  // see MorseTrailblazer.h
+        , _foxHunt      // see MorseFoxHunt.h
+        , _memoryChain  // see MorseMemoryChain.h
+#endif
    };
 
 enum loops
@@ -409,6 +417,7 @@ enum prefPos : uint8_t {
 #endif
 #ifdef CONFIG_QSO_BOT
         posQsoBotContestType,
+        posQsoBotLevel,
 #endif
   posSerialOut,
                 // to be treated differently:
