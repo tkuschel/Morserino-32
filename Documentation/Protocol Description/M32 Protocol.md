@@ -518,6 +518,11 @@ Example:
 
 This sets Koch lesson to lesson number <n>.
 
+Note: when "Koch Sequence" is set to "Custom Chars", the lesson indexes into
+the custom character set — "maximum" reflects the length of that set (instead
+of the fixed 51), and "characters" reports only its first <n> characters, i.e.
+the active training pool for the CW Generator / Echo Trainer.
+
 
 ### Custom Character Set
 
@@ -536,6 +541,13 @@ This sets and enables a custom Koch character set. The `<characters>` string con
 Example:
 
 	PUT customchars/set/mkrsuaptlowi
+
+Note: on the device, the custom character set is derived from the uploaded
+player file (`/player.txt`) — that file is the source of truth. A set injected
+with this command therefore persists only until the preferences menu is next
+exited while "Custom Chars" is active: at that moment the set is re-derived
+from the player file, replacing the injected one. To make a character set
+permanent, upload it as the player file instead (or in addition).
 
 `PUT customchars/clear`
 
@@ -577,7 +589,7 @@ Example:
 
 This returns read-only information about hardware settings. These values are displayed for informational purposes and cannot be changed via the serial protocol (so a backup tool can read them for reference, but cannot restore them).
 
-The properties are: "brightness" (type Number; OLED brightness level), "leftHanded" (type Boolean; whether screen is flipped for left-handed use), and "vAdjust" (type Number; battery voltage calibration value). On devices with LoRa hardware, the response also includes "loraBand" (type Number; 0=433, 1=868, 2=920 MHz), "loraFrequency" (type Number; exact frequency in Hz), and "loraPower" (type Number; transmit power in dBm).
+The properties are: "brightness" (type Number; OLED brightness level), "leftHanded" (type Boolean; whether screen is flipped for left-handed use), and "vAdjust" (type Number; battery voltage calibration value). On the M32 Pocket the response also includes "cn3Paddle" (type String; "touch" or "mechanical" — the paddle type configured for the CN3 connector). On devices with LoRa hardware, the response also includes "loraBand" (type Number; 0=433, 1=868, 2=920 MHz), "loraFrequency" (type Number; exact frequency in Hz), and "loraPower" (type Number; transmit power in dBm).
 
 Example (M32 with LoRa):
 

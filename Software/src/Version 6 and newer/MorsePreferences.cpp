@@ -84,6 +84,7 @@ const char * prefName[] = {
 #endif
 #ifdef CONFIG_QSO_BOT
             "qsoBotContestType",
+            "qsoBotLevel",
 #endif
             "serialOut"
 					};
@@ -434,6 +435,13 @@ parameter MorsePreferences::pliste[] = {
     true,
     {"CQ WW", "WPX/Sprint"}
   },
+  {
+    1, 0, 2, 1,                                                 // QSO Bot difficulty: 0=Beginner, 1=Intermediate, 2=Advanced
+    "QSO Difficulty",
+    "How forgiving and how chatty the QSO Bot partner is",
+    true,
+    {"Beginner", "Intermediate", "Advanced"}
+  },
 #endif
   {
     5, 0, 5, 1,        // Serial Output entry (unchanged)                                                // output characters on USB serial? 0 = none (but DEBUG/ERR) 1= keyed, 2 = decode, 3=both, 4=generated, 5=all
@@ -470,6 +478,7 @@ uint8_t MorsePreferences::loraBand = 0;                     // 0 = 433, 1 = 868,
 uint32_t MorsePreferences::loraQRG = QRG433;                // for 70 cm band
 uint8_t MorsePreferences::loraPower = 14;                   // default 14 dBm = 25 mW
 boolean MorsePreferences::leftHanded = false;               // to flip screen for left-handed use in Pocket
+boolean MorsePreferences::cn3Mechanical = false;            // CN3 connector: false = capacitive touch (default), true = mechanical paddle/key
 
   ///// stored in preferences, but not adjustable through preferences menu:
 
@@ -569,7 +578,7 @@ FilePart MorsePreferences::fileParts[MAX_FILE_PARTS];
 #define BLUE
 #endif
 #ifdef CONFIG_QSO_BOT
-#define QSOBOT posQsoBotContestType,
+#define QSOBOT posQsoBotLevel, posQsoBotContestType,
 #else
 #define QSOBOT
 #endif
@@ -643,7 +652,7 @@ FilePart MorsePreferences::fileParts[MAX_FILE_PARTS];
 
                                                    posCurtisMode, posCurtisBDahTiming, posCurtisBDotTiming, posACS, posInterWordSpace, posLatency, posEchoToneShift,
                                                    posGoertzelBandwidth,
-                                                   posQsoBotContestType
+                                                   posQsoBotLevel, posQsoBotContestType
                                                  };
 #endif
 
@@ -739,8 +748,13 @@ boolean MorsePreferences::setupPreferences(uint8_t atMenu) {
                       break;
           case -1:    //////// long press indicates we are done with setting preferences - check if we need to store some of the preferences
 
-          exitFromHere: if (MorsePreferences::useCustomChars)
-                            koch.setCustomChars(getCustomChars()); //// get custom characters
+          exitFromHere: if (MorsePreferences::useCustomChars) {
+                            String chars = getCustomChars(); //// get custom characters
+                            if (chars.length() > 0)
+                                koch.setCustomChars(chars);
+                            // else: an empty re-upload keeps the previously active custom
+                            // set/bounds rather than silently wiping a working configuration
+                        }
                         if (m32protocol && posPtr < posKochFilter)
                             MorseJSON::jsonActivate(ACT_EXIT);
 
@@ -1014,6 +1028,11 @@ String MorsePreferences::getValueLine(prefPos pos) {
         case 4:   str = "LoRa Config.";
                   break;
 #endif
+#ifdef CONFIG_CN3_PADDLE
+        case HWCONF_CN3_SLOT:
+                  str = MorsePreferences::cn3Mechanical ? "CN3: Mechan." : "CN3: Touch";
+                  break;
+#endif
         default:  str = "Cancel";
                   break;
         }
@@ -1130,6 +1149,10 @@ void MorsePreferences::resetGameScores() {
     p.begin("m32game",   false); p.clear();                      p.end();   // Invaders high-score table
     p.begin("morsel",    false); p.remove("hi"); p.remove("hv"); p.end();   // Morsel scores (keep wlen)
     p.begin("radiocave", false); p.remove("save");               p.end();   // Radio Cave save/progress
+    p.begin("gridgame",  false);                                            // Trailblazer + Fox Hunt + Memory Chain
+    p.remove("tb");  p.remove("tbv");  p.remove("fh");  p.remove("fhv");    //   high-score tables
+    p.remove("mc");  p.remove("mcv");  p.remove("mcc"); p.remove("mccv");   //   (keep "mcopt" — Memory Chain's lobby settings)
+    p.end();
     MorseOutput::clearScrollLines();
     MorseOutput::printOnScroll(1, BOLD, 0, "Scores cleared");
     MorseOutput::refreshDisplay();
@@ -1230,8 +1253,12 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
                       temp = val + maxi - 2*mini + vstep  + t*vstep;
                       pliste[pos].value = (temp % (maxi - mini +vstep)) + mini;
                   }
-                  if (pos == posKochSeq)
-                      MorsePreferences::handleKochSequence();
+                  if (pos == posKochSeq) {
+                      if (!MorsePreferences::handleKochSequence()) {
+                          MorseOutput::printOnScroll(2, BOLD, 0, "No custom set");
+                          delay(700);
+                      }
+                  }
                   else if (pos == posCarouselStart && pliste[posKochSeq].value == 3)
                       MorsePreferences::handleCarouselChange();
 #ifdef CONFIG_SOUND_I2S 
@@ -1280,7 +1307,10 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
                                   MorsePreferences::vAdjust = constrain(MorsePreferences::vAdjust, 155, 254);
                                   break;
                       case posHwConf:
-                      #ifndef LORA_DISABLED
+                      #ifdef CONFIG_CN3_PADDLE
+                                  hwConf += (t + HWCONF_NUM_SLOTS);
+                                  hwConf = hwConf % HWCONF_NUM_SLOTS;
+                      #elif !defined(LORA_DISABLED)
                                   hwConf += (t+5);
                                   hwConf = hwConf % 5;
                       #else
@@ -1310,28 +1340,23 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
 }   // end of function adjustKeyerPreference
 
 
-void MorsePreferences::handleKochSequence() {
+boolean MorsePreferences::handleKochSequence() {  // returns false if Custom Chars was requested but no character set is available (yet)
     MorsePreferences::useCustomChars = false;
-    switch (MorsePreferences::pliste[posKochSeq].value) {
-      case 3:                                                 // LICW
-              handleCarouselChange();
-              break;
-      case 4:                                                 // Custom Chars
-              MorsePreferences::useCustomChars = true;
-      default:                                                // all others are treated the same
-              MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = 51;
-              MorsePreferences::kochMinimum = 1;
-              MorsePreferences::kochFilter = constrain(MorsePreferences::kochFilter, MorsePreferences::kochMinimum, MorsePreferences::kochMaximum);
-              koch.setup();
+    if (MorsePreferences::pliste[posKochSeq].value == 4) {      // Custom Chars
+        String chars = MorsePreferences::customCharSet;
+        if (chars.length() == 0)
+            chars = getCustomChars();                            // try to (re-)read it from the file player right away
+        if (chars.length() == 0)
+            return false;                                        // none available - leave the current mode/bounds untouched
+        MorsePreferences::useCustomChars = true;
+        MorsePreferences::customCharSet = chars;
     }
+    koch.setup();                                                 // setKochChars()/setCustomChars() derive the correct bounds
+    return true;
 }
 
 void MorsePreferences::handleCarouselChange() {
-      MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = koch.setupLICWkochChars(MorsePreferences::pliste[posCarouselStart].value);
-      MorsePreferences::kochMinimum = kochCharsLength > 18 ? 19 : 1;
-//DEBUG("@ 842: kMin: " + String(MorsePreferences::kochMinimum) + " kMax: " + String(MorsePreferences::kochMaximum));
-      MorsePreferences::kochFilter = constrain(MorsePreferences::kochFilter, MorsePreferences::kochMinimum, MorsePreferences::kochMaximum);
-      koch.setup();
+      koch.setup();                                               // setKochChars() case 3 derives the LICW bounds from posCarouselStart
 }
 
 
@@ -1463,7 +1488,12 @@ void MorsePreferences::readScreenPref() {
   if (pref.isKey("leftHanded")) { // has this been set yet?
     MorsePreferences::leftHanded = pref.getBool("leftHanded");
   }   else
-    MorsePreferences::leftHanded = false;  
+    MorsePreferences::leftHanded = false;
+#ifdef CONFIG_CN3_PADDLE
+  // CN3 paddle mode is a hardware-config toggle read early (before initSensors / checkKey),
+  // like leftHanded. Absent key = default (capacitive touch).
+  MorsePreferences::cn3Mechanical = pref.getBool("cn3Mech", false);
+#endif
   pref.end();
 }
 
@@ -1820,6 +1850,63 @@ void MorsePreferences::flipScreen() {
   pref.putBool("leftHanded", MorsePreferences::leftHanded);
   pref.end();
 }
+
+#ifdef CONFIG_CN3_PADDLE
+// Hardware Config menu action: let the user choose whether the CN3 connector carries a
+// capacitive touch paddle (default) or a mechanical paddle/key. Modeled on confirmDelete()
+// for the encoder chooser and on flipScreen() for the persist step. When the setting
+// changes we reboot, so IO4/IO5 are re-initialised for the chosen mode from a clean state
+// (touch peripheral vs. INPUT_PULLUP) in setup().
+void MorsePreferences::cn3PaddleConfig() {
+  const String emptyLine = "                    ";
+  const int maxLength = 18;
+  String valueLine;
+  int8_t t;
+  uint8_t choice = MorsePreferences::cn3Mechanical ? 1 : 0;   // 0 = Touch, 1 = Mechanical
+  const char* options[] = {"Touch", "Mechanical"};
+
+  MorseOutput::clearStatusLine();
+  MorseOutput::clearScrollLines();
+  MorseOutput::printOnStatusLine(true, 0, "CN3 Paddle Type:");
+  String itemLine = "CN3 Connector";
+  itemLine += emptyLine.substring(0, maxLength - itemLine.length());
+  MorseOutput::printOnScroll(1, BOLD, 0, itemLine);
+
+  valueLine = String(options[choice]);
+  valueLine += emptyLine.substring(0, maxLength - valueLine.length());
+  MorseOutput::printOnScroll(2, REGULAR, 1, valueLine);
+  MorseOutput::printOnScroll(2, INVERSE_BOLD, 0, ">");
+  MorseOutput::refreshDisplay();
+
+  while (true) {
+    Buttons::modeButton.Update();
+    switch (Buttons::modeButton.clicks) {
+      case -1 :   // long press = cancel, leave setting unchanged
+                  return;
+      case  1 : { // short press = confirm current selection
+                  boolean newVal = (choice == 1);
+                  if (newVal != MorsePreferences::cn3Mechanical) {
+                      MorsePreferences::cn3Mechanical = newVal;
+                      pref.begin("morserino", false);
+                      pref.putBool("cn3Mech", newVal);
+                      pref.end();
+                      ESP.restart();          // reboot so IO4/IO5 come up in the chosen mode
+                  }
+                  return;
+                }
+    }
+    if ((t = checkEncoder())) {
+      MorseOutput::pwmClick(MorsePreferences::sidetoneVolume);
+      choice = (choice + 1) % 2;              // toggle between Touch and Mechanical
+      valueLine = String(options[choice]);
+      valueLine += emptyLine.substring(0, maxLength - valueLine.length());
+      MorseOutput::printOnScroll(2, REGULAR, 1, valueLine);
+      MorseOutput::printOnScroll(2, INVERSE_BOLD, 0, ">");
+      MorseOutput::refreshDisplay();
+    }
+  }
+}
+#endif // CONFIG_CN3_PADDLE
 
 void MorsePreferences::fireCharSeen(boolean wpmOnly)
 {
@@ -2229,17 +2316,29 @@ void Koch::setup() {                                                // create th
 }
 
 void Koch::setKochChars(uint8_t sequence) { // define the demanded Koch character set: Koch sequenze: 0 = native/JLMC, 1 = LCWO, 2 = CW Academy, 3 = LICW, 4 = Custom
+    // Bounds bookkeeping lives here (mirroring setCustomChars()) so every caller of
+    // koch.setup() gets correct kochCharsLength/kochMinimum/kochMaximum for the
+    // selected sequence, not just the ones that also call handleKochSequence()/
+    // handleCarouselChange().
     switch (sequence) {
         case 1: kochCharSet = lcwoKochChars;
                 break;
         case 2: kochCharSet = cwacKochChars;
                 break;
-        case 3: setupLICWkochChars(MorsePreferences::pliste[posCarouselStart].value);
+        case 3: {
+                uint8_t l = setupLICWkochChars(MorsePreferences::pliste[posCarouselStart].value);
                 kochCharSet = licwKochChars;
-                break;
+                MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = l;
+                MorsePreferences::kochMinimum = l > 18 ? 19 : 1;
+                MorsePreferences::kochFilter = constrain(MorsePreferences::kochFilter, MorsePreferences::kochMinimum, MorsePreferences::kochMaximum);
+                return;
+                }
         default:kochCharSet = morserinoKochChars;
                 break;
     }
+    MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = sizeof(adaptiveProbabilities) / sizeof(adaptiveProbabilities[0]);
+    MorsePreferences::kochMinimum = 1;
+    MorsePreferences::kochFilter = constrain(MorsePreferences::kochFilter, MorsePreferences::kochMinimum, MorsePreferences::kochMaximum);
 }
 
 
@@ -2279,13 +2378,33 @@ uint8_t Koch::setupLICWkochChars(uint8_t start) {  // set up the string of chara
  
 void Koch::setCustomChars(const String& chars) {          // define the custom character set
    MorsePreferences::customCharSet = chars;
+   uint8_t capacity = sizeof(adaptiveProbabilities) / sizeof(adaptiveProbabilities[0]);
+   if (chars.length() == 0) {
+       // Nothing to index into. Fall back to the full built-in range instead of
+       // clamping (and persisting) the user's saved lesson down to 1 - this branch
+       // is reachable even with useCustomChars still true (e.g. an empty NVS copy
+       // before the first file upload), so it must not discard that lesson value.
+       MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = capacity;
+       MorsePreferences::kochMinimum = 1;
+       return;
+   }
+   // Koch Lesson indexes into this set for Custom Chars, so its range must track
+   // the set's actual length (capped to the adaptiveProbabilities[] capacity).
+   uint8_t len = _min((size_t) chars.length(), (size_t) capacity);
+   MorsePreferences::kochCharsLength = MorsePreferences::kochMaximum = len;
+   MorsePreferences::kochMinimum = 1;
+   MorsePreferences::kochFilter = constrain(MorsePreferences::kochFilter, MorsePreferences::kochMinimum, MorsePreferences::kochMaximum);
 }
 
 String Koch::getNewChar() {                     // for Koch Learn New Character
+  if (MorsePreferences::useCustomChars)
+    return String(MorsePreferences::customCharSet.charAt(MorsePreferences::kochFilter - 1));
   return String(kochCharSet.charAt(MorsePreferences::kochFilter - 1));
 }
 
 String Koch::getKochChar(uint8_t i) {           // get a String consisting of a single character at pos i in kochCharSet (i starting with 0)
+  if (MorsePreferences::useCustomChars)
+    return String(MorsePreferences::customCharSet.charAt(i));
   return String(kochCharSet.charAt(i));
 }
 
@@ -2294,8 +2413,9 @@ String Koch::getRandomChar(int maxl) {                  // get a random characte
     result.reserve(7);
 
     if (MorsePreferences::useCustomChars) {
+        String activeSet = getCharSet();                       // Koch Lesson limits the pool to its first N custom characters
         for (int i = 0; i < maxl; ++i )
-            result += MorsePreferences::customCharSet.charAt(random(MorsePreferences::customCharSet.length()));
+            result += activeSet.charAt(random(activeSet.length()));
     }
     else {
         int endk =  MorsePreferences::kochFilter;               // kochChars = "mkrsuaptlowi.njef0yv,g5/q9zh38b?427c1d6x-=KA+SNE@:"
@@ -2380,7 +2500,7 @@ String Koch::getInitChar(int maxl)
 String Koch::getCharSet()
 {
   if (MorsePreferences::useCustomChars)
-    return MorsePreferences::customCharSet;
+    return MorsePreferences::customCharSet.substring(0, _min((size_t) MorsePreferences::kochFilter, MorsePreferences::customCharSet.length()));
   else
     return kochCharSet.substring(0, MorsePreferences::kochFilter);
 }
