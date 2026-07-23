@@ -1,5 +1,5 @@
 // MorseQsoBot.cpp — see MorseQsoBot.h for the public interface.
-//
+// spell:ignore SOTA POTA BOTAGE BOTANT BOTCALL BOTEXCH BOTNAME BOTQTH BOTREF BOTRIG BOTWX Farnsworth KEYERSTATES Keyer OLED Pota SANKEBH Sota behaviours botcall keyer morserino pliste pota sidetone sota tmpl willi
 // PR-3.5 scope (SOTA/POTA):
 //   - Table-driven matcher (SlotGrammar) with noise filtering + concat.
 //   - Dynamic opening: the bot waits ~5 s for the user to call CQ.
@@ -292,7 +292,6 @@ String               gConcatBuf;
 
 // Dynamic-opening state.
 bool                 gUserStartedCalling = false;
-bool                 gOpeningCallSeen    = false;   // a callsign captured this opening
 bool                 gOpeningCallSeen    = false;   // a callsign captured this opening
 unsigned long        gOpeningStart       = 0;
 unsigned long        gOpeningActivity    = 0;

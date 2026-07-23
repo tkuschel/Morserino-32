@@ -1,0 +1,3 @@
+# spell:ignore mlongcalls mtext fstrict bitfields fipa
+CompileFlags:
+  Remove: [-mlongcalls, -mtext-section-literals, -fstrict-volatile-bitfields, -fno-tree-switch-conversion, -fipa-pta, -free]
