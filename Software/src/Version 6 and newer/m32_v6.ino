@@ -489,44 +489,7 @@ void setup()
    //// 7. check for press of key/paddle at start, to initiate hw config
    //// 8. do the remaining initialisations
 
-  Serial.begin(115200);Serial.println("\n=== ESP32 BENCHMARK START ===");
-
-    const int SCHLEIFEN_ANZAHL = 10000;
-    
-    // Teststring mit gemischten Prosigns und normalen Zeichen (ca. 14 Zeichen)
-    const String testBasis = "CQ S DE K H R U"; 
-
-    // --- BENCHMARK 1: ORIGINAL ---
-    int64_t startOrig = esp_timer_get_time();
-    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
-        String testStr = testBasis;
-        cleanUpProSigns_Original(testStr);
-        // volatile Zuweisung verhindert, dass der Compiler die Schleife wegtoptimiert
-        volatile const char* p = testStr.c_str(); 
-    }
-    int64_t endOrig = esp_timer_get_time();
-    int64_t zeitOrig = endOrig - startOrig;
-
-    // --- BENCHMARK 2: OPTIMIERT ---
-    int64_t startOpt = esp_timer_get_time();
-    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
-        String testStr = testBasis;
-        cleanUpProSigns_Optimized(testStr);
-        volatile const char* p = testStr.c_str();
-    }
-    int64_t endOpt = esp_timer_get_time();
-    int64_t zeitOpt = endOpt - startOpt;
-
-    // --- AUSWERTUNG ---
-    Serial.printf("Original-Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOrig);
-    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOrig / SCHLEIFEN_ANZAHL);
-
-    Serial.printf("Optimierte Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOpt);
-    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOpt / SCHLEIFEN_ANZAHL);
-
-    double beschleunigung = ((double)zeitOrig / zeitOpt);
-    Serial.printf("Die neue Version ist ca. %.2fx schneller!\n", beschleunigung);
-    Serial.println("=============================");
+  Serial.begin(115200);
   delay(30); // give me time to bring up serial monitor
   // reserve 400 bytes for the serial inputString variable defined above:
   inputString.reserve(400);
