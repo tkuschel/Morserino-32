@@ -423,26 +423,8 @@ bool acceptRef     (const String& tok, const String&)   { return matchRef(tok.c_
 bool acceptProsign (const String& tok, const String& e) { return matchProsignTok(tok.c_str(), e.c_str()); }
 bool acceptExchange(const String& tok, const String&)   { return matchExchange(tok.c_str()); }
 
-const char* const kCommonNoise[]   = { "de", "dr", "pse", "qsl", "tnx", "tu",
-                                       "ok", "fb", "es", "qrl", "om", "oc",
-                                       "dx", "hr", "gm", "ga", "ge", "gd",
-                                       "cfm", "cpy", "ant", "rig", nullptr };
-// Note: "k" is deliberately NOT listed here. It is an end-of-over marker
-// (see isEndOfOver) but also a very common callsign first letter; if the
-// decoder splits a call's leading "K" into its own token (common before
-// its speed estimate has settled at the start of an over), treating "k"
-// as noise would drop the prefix and lose the call. Leaving it out lets
-// the concat buffer glue "K" + "2XYZ" back into "K2XYZ". A trailing "k"
-// after the call has already matched is handled by isEndOfOver instead.
-const char* const kCallsignNoise[] = { "bk", "qrz", "qrz?", "cq", "sota",
-                                       "pota", nullptr };
-const char* const kRstNoise[]      = { "r", "rr", "ur", "qsa", "qrk", "bk",
-                                       "rst", nullptr };
-const char* const kRefNoise[]      = { "qth", "loc", "ref", "r", "rr", "bk",
-                                       nullptr };
-const char* const kProsignNoise[]  = { nullptr };
-const char* const kExchangeNoise[] = { "5nn", "599", "ur", "r", "rr", "nr",
-                                       "bk", "tu", nullptr };
+// Noise tables (kCommonNoise, kCallsignNoise, ...) live in MorseQsoBotMatch.h
+// and are visible here via `using namespace QsoMatch`.
 
 const SlotGrammar& grammarFor(QsoSlotKind slot) {
     static const SlotGrammar kGrammars[] = {
@@ -568,7 +550,6 @@ void startOpening() {
     inputReset();
     gConcatBuf          = "";
     gUserStartedCalling = false;
-    gOpeningCallSeen    = false;
     gOpeningCallSeen    = false;
     gOpeningStart       = millis();
     gOpeningActivity    = millis();
@@ -1022,12 +1003,7 @@ void run(menuNo mode) {
                         String bot(gActors.botCall); bot.toUpperCase();
                         if (upper != bot) gActors.userCall = token;
                         gOpeningCallSeen = true;
-                        gOpeningCallSeen = true;
                     }
-                    // A clear end-of-over marker ends the user's CQ at once,
-                    // but only once we've seen their call — otherwise a
-                    // split-off leading "k" would finish the opening early.
-                    if (isEndOfOver(upper) && gOpeningCallSeen) finishOpening();
                     // A clear end-of-over marker ends the user's CQ at once,
                     // but only once we've seen their call — otherwise a
                     // split-off leading "k" would finish the opening early.
@@ -1147,16 +1123,6 @@ void run(menuNo mode) {
                         }
                     }
 
-                    // Honour an end-of-over marker only once the slot's
-                    // value has actually been captured. A bare "k" before
-                    // any match is almost always the split-off first letter
-                    // of a callsign (e.g. "K2XYZ"), not the user signing
-                    // the over — acting on it here would fire a premature
-                    // "qrz?". If the marker really is the end of the over,
-                    // the value matched earlier in the same over; if the
-                    // user truly sent nothing matchable, the silence
-                    // timeout (or no-reply timeout) handles it.
-                    if (isEndOfOver(upper) && gOverMatched) processOver(step);
                     // Honour an end-of-over marker only once the slot's
                     // value has actually been captured. A bare "k" before
                     // any match is almost always the split-off first letter
