@@ -41,6 +41,10 @@
 #include "goertzel.h"         // Goertzel filter
 #include "MorseDecoder.h"     // Decoder Engine
 #include "MorseJSON.h"        // JSON handling for file upload and serial communication
+#include "M32ProtocolOut.h"   // m32out tee + protocolActive(): protocol output/gating across transports
+#ifdef CONFIG_BLE_SERIAL
+#include "MorseBleSerial.h"   // M32 protocol over BLE (Nordic UART Service)
+#endif
 #include <mbedtls/base64.h>     // for base64 decoding (built into ESP32)
 
 // MorseGame.h is needed even on QSO-Bot-only builds: it carries the
@@ -179,6 +183,12 @@ encoderMode encoderState = speedSettingMode;    // we start with adjusting the s
 
 // a few things for the serial m32protocol
 boolean m32protocol = false;
+#ifdef CONFIG_BLE_SERIAL
+volatile bool bleProtocol = false;                      // per-transport handshake state for BLE Serial (see M32ProtocolOut.h);
+                                                        // cleared by onDisconnect (BT task) and synchronously by MorseBleSerial::stop()
+String bleInputString;                                  // BLE line assembly, mirrors inputString (reserve(400) in setup())
+bool bleDiscardLine = false;                            // discard the tail of an overlong line up to the next \n
+#endif
 String inputString = "";      // a String to hold incoming data         // for serial input
 boolean stringComplete = false;  // whether the string is complete
 String vsn, brd;              // strings to hold firmware version and board version
@@ -479,7 +489,44 @@ void setup()
    //// 7. check for press of key/paddle at start, to initiate hw config
    //// 8. do the remaining initialisations
 
-  Serial.begin(115200);
+  Serial.begin(115200);Serial.println("\n=== ESP32 BENCHMARK START ===");
+
+    const int SCHLEIFEN_ANZAHL = 10000;
+    
+    // Teststring mit gemischten Prosigns und normalen Zeichen (ca. 14 Zeichen)
+    const String testBasis = "CQ S DE K H R U"; 
+
+    // --- BENCHMARK 1: ORIGINAL ---
+    int64_t startOrig = esp_timer_get_time();
+    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
+        String testStr = testBasis;
+        cleanUpProSigns_Original(testStr);
+        // volatile Zuweisung verhindert, dass der Compiler die Schleife wegtoptimiert
+        volatile const char* p = testStr.c_str(); 
+    }
+    int64_t endOrig = esp_timer_get_time();
+    int64_t zeitOrig = endOrig - startOrig;
+
+    // --- BENCHMARK 2: OPTIMIERT ---
+    int64_t startOpt = esp_timer_get_time();
+    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
+        String testStr = testBasis;
+        cleanUpProSigns_Optimized(testStr);
+        volatile const char* p = testStr.c_str();
+    }
+    int64_t endOpt = esp_timer_get_time();
+    int64_t zeitOpt = endOpt - startOpt;
+
+    // --- AUSWERTUNG ---
+    Serial.printf("Original-Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOrig);
+    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOrig / SCHLEIFEN_ANZAHL);
+
+    Serial.printf("Optimierte Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOpt);
+    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOpt / SCHLEIFEN_ANZAHL);
+
+    double beschleunigung = ((double)zeitOrig / zeitOpt);
+    Serial.printf("Die neue Version ist ca. %.2fx schneller!\n", beschleunigung);
+    Serial.println("=============================");
   delay(30); // give me time to bring up serial monitor
   // reserve 400 bytes for the serial inputString variable defined above:
   inputString.reserve(400);
@@ -838,8 +885,14 @@ delay(VEXT_SETTLE_MS);   // let the panel supply rail settle before the ST7789 r
     //DEBUG("Clear serial input buffer");
     inputString = "";
 
+#ifdef CONFIG_BLE_SERIAL
+    bleInputString.reserve(400);      // mirrors inputString; avoids String churn on the command path
+    if (MorsePreferences::pliste[posBluetoothOut].value == BLT_USE_SERIAL_PROT)
+      MorseBleSerial::init();         // defensive: refuses visibly instead of blocking if the stack is unusable
+#endif
+
     //WiFi.useStaticBuffers(true);
-    
+
     MorseMenu::menu_();
   } /////////// END setup()
 
@@ -961,6 +1014,47 @@ void displayStartUp(uint16_t volt) {
 //DEBUG("Display done, delay");
 delay(1800);
 //DEBUG("Display startup complete");
+
+    Serial.println("\n=== ESP32 BENCHMARK START ===");
+
+    const int SCHLEIFEN_ANZAHL = 10000;
+    
+    // Teststring mit gemischten Prosigns und normalen Zeichen (ca. 14 Zeichen)
+    const String testBasis = "CQ S DE K H R U"; 
+
+    // --- BENCHMARK 1: ORIGINAL ---
+    int64_t startOrig = esp_timer_get_time();
+    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
+        String testStr = testBasis;
+        cleanUpProSigns(testStr);
+        // volatile Zuweisung verhindert, dass der Compiler die Schleife wegtoptimiert
+        volatile const char* p = testStr.c_str(); 
+    }
+    int64_t endOrig = esp_timer_get_time();
+    int64_t zeitOrig = endOrig - startOrig;
+
+    // --- BENCHMARK 2: OPTIMIERT ---
+    int64_t startOpt = esp_timer_get_time();
+    for (int i = 0; i < SCHLEIFEN_ANZAHL; i++) {
+        String testStr = testBasis;
+        cleanUpProSignsOptimized(testStr);
+        volatile const char* p = testStr.c_str();
+    }
+    int64_t endOpt = esp_timer_get_time();
+    int64_t zeitOpt = endOpt - startOpt;
+
+    // --- AUSWERTUNG ---
+    Serial.printf("Original-Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOrig);
+    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOrig / SCHLEIFEN_ANZAHL);
+
+    Serial.printf("Optimierte Version (%d Aufrufe): %lld µs\n", SCHLEIFEN_ANZAHL, zeitOpt);
+    Serial.printf("Durschnitt pro Aufruf: %.3f µs\n\n", (double)zeitOpt / SCHLEIFEN_ANZAHL);
+
+    double beschleunigung = ((double)zeitOrig / zeitOpt);
+    Serial.printf("Die neue Version ist ca. %.2fx schneller!\n", beschleunigung);
+    Serial.println("=============================");
+
+    delay(10000);
 }
 
 ///////////////////////// THE MAIN LOOP - do this OFTEN! /////////////////////////////////
@@ -1047,7 +1141,7 @@ void loop() {
                               else {
                                   keyOut(false, true, 0, 0);
                                   MorseOutput::printOnStatusLine( true, 0, continueMsg4Disp);
-                                  if (m32protocol)
+                                  if (protocolActive())
                                     MorseJSON::jsonCreate("message", continueMsg4Json, "");
                               }
                           } else {                  /// no paddle pressed - check stop flag
@@ -1093,9 +1187,9 @@ void loop() {
   } // end switch and code depending on state of metaMorserino
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
 // we check here if bluetooth should be started
-if (morseState == morseKeyer && 
-      MorsePreferences::pliste[posBluetoothOut].value != 0 && 
-      !MorseBluetooth::isBLErunning) {
+if (morseState == morseKeyer &&
+      MorseBluetooth::keyboardMode() != 0 &&      // 0 also when the selector gives BLE to the serial
+      !MorseBluetooth::isBLErunning) {            // protocol (additionally enforced inside init)
     // Initialize Bluetooth System
     MorseBluetooth::initializeBluetooth();
 }
@@ -1160,14 +1254,14 @@ if (morseState == morseKeyer &&
     }
 
     switch (Buttons::modeButton.clicks) {                                // actions based on encoder button
-       case -1:   if (m32protocol)
+       case -1:   if (protocolActive())
                       MorseJSON::jsonActivate(ACT_EXIT);
                   MorseMenu::menu_();                                       // long click exits current mode and goes to top menu
                   return;
        case 1:    if (encoderState == memSelMode) {
                     if (ptr != 0) {
                       preparePlay(memList[ptr]);
-                      if (m32protocol)
+                      if (protocolActive())
                         MorseJSON::jsonOK();
                     }
                     encoderState = speedSettingMode;
@@ -1178,7 +1272,7 @@ if (morseState == morseKeyer &&
                   if (!genIsActive) {
                         keyOut(false, true, 0, 0);
                         MorseOutput::printOnStatusLine( true, 0, continueMsg4Disp);
-                        if (m32protocol)
+                        if (protocolActive())
                             MorseJSON::jsonCreate("message", continueMsg4Json, "");
                   }
                   else {
@@ -1186,7 +1280,7 @@ if (morseState == morseKeyer &&
                   }
 
               } else if (morseState == morseKeyer || morseState == morseTrx) {  // when Keyer is active, we select a keyer memory
-                    if (m32protocol)
+                    if (protocolActive())
                         MorseJSON::jsonCreate("message", "Select Memory", "");
                     memoryKeyer();
               }
@@ -1283,7 +1377,7 @@ void checkStopFlag() {
       //if (MorsePreferences::fileWordPointer > 1)
       //  --MorsePreferences::fileWordPointer;          // avoid that a word is being skipped after interruption
       MorseOutput::printOnStatusLine( true, 0, continueMsg4Disp);
-      if (m32protocol)
+      if (protocolActive())
         MorseJSON::jsonCreate("message", continueMsg4Json, "");
     }
 }
@@ -1320,7 +1414,7 @@ boolean doPaddleIambic (boolean dit, boolean dah) {
   static long latencytimer;                // timer for "muting" paddles for some time in state INTER_ELEMENT
   static long corrTime;
   unsigned int pitch;
-#ifdef CONFIG_BLUETOOTH_KEYBOARD  // only when BLE is compiled in (biggest heap user) we check heap size here, and only every 10 seconds, to avoid too much overhead
+#if defined(CONFIG_BLUETOOTH_KEYBOARD) || defined(CONFIG_BLE_SERIAL)  // only when BLE is compiled in (biggest heap user) we check heap size here, and only every 10 seconds, to avoid too much overhead
     static unsigned long lastHeapCheck = 0;
     if (millis() - lastHeapCheck > 10000) {
         lastHeapCheck = millis();
@@ -2467,8 +2561,8 @@ void displayDecodedMorse(String symbol, boolean keyed) {
     SerialOutMorse(tmp_str, keyed ? 0b001 : 0b010);
  
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-    if ((MorsePreferences::pliste[posBluetoothOut].value & 0x6) >= 0x2)
-        MorseBluetooth::bluetoothTypeString(tmp_str);
+    if ((MorseBluetooth::keyboardMode() & 0x6) >= 0x2)      // keyboardMode, not the raw pliste value:
+        MorseBluetooth::bluetoothTypeString(tmp_str);       // 5 (BLE Serial) must never pass a HID gate
 #endif
  
     if (morseState == echoTrainer) {
@@ -2505,14 +2599,14 @@ void displayGeneratedMorse(FONT_ATTRIB style, const String& s) {
         MorseOutput::printToScroll(style, upper, true, encoderState == scrollMode);
         SerialOutMorse(upper, 0b100);
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-        if ((MorsePreferences::pliste[posBluetoothOut].value & 0x6) >= 0x2)
+        if ((MorseBluetooth::keyboardMode() & 0x6) >= 0x2)
             MorseBluetooth::bluetoothTypeString(upper);
 #endif
     } else {
         MorseOutput::printToScroll(style, s, true, encoderState == scrollMode);
         SerialOutMorse(s, 0b100);
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-        if ((MorsePreferences::pliste[posBluetoothOut].value & 0x6) >= 0x2)
+        if ((MorseBluetooth::keyboardMode() & 0x6) >= 0x2)
             MorseBluetooth::bluetoothTypeString(s);
 #endif
     }
@@ -2523,7 +2617,7 @@ void displayGeneratedMorse(FONT_ATTRIB style, const String& s) {
 void SerialOutMorse(const String& s, uint8_t origin) {
   uint8_t bitmap = (MorsePreferences::pliste[posSerialOut].value < 5 ? MorsePreferences::pliste[posSerialOut].value : 7);
   if (origin & bitmap)
-      Serial.print(s);
+      m32out.echo(s);       // USB always (as before); a handshaken BLE client gets a copy, drop-immediately (keying path)
 }
 
 
@@ -2662,7 +2756,7 @@ void changeSpeedValue( int t) {
   MorsePreferences::wpm += t;
   MorsePreferences::wpm = constrain(MorsePreferences::wpm, MorsePreferences::wpmMin, MorsePreferences::wpmMax);
   updateTimings();
-  if (m32protocol)
+  if (protocolActive())
       MorseJSON::jsonControl("speed", MorsePreferences::wpm, MorsePreferences::wpmMin, MorsePreferences::wpmMax, false);
 }
 
@@ -2681,7 +2775,7 @@ void changeVolumeValue( int t) {
     #ifdef CONFIG_TLV320AIC3100
       MorseOutput::soundSetVolume(MorsePreferences::sidetoneVolume);
     #endif
-    if (m32protocol)
+    if (protocolActive())
       MorseJSON::jsonControl("volume", MorsePreferences::sidetoneVolume, MorsePreferences::volumeMin, MorsePreferences::volumeMax, false);
 }
 
@@ -2696,7 +2790,7 @@ void keyTransmitter(boolean noTx) {
       return;
    digitalWrite(keyerPin, HIGH);           // turn the LED on, key transmitter, or whatever
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-   if ((MorsePreferences::pliste[posBluetoothOut].value & 0x1) == 0x1)
+   if ((MorseBluetooth::keyboardMode() & 0x1) == 0x1)
       MorseBluetooth::bluetoothTypeLCTRL(true);
 #endif
 }
@@ -2756,7 +2850,31 @@ String cleanUpProSigns( String &input ) {
 //   assignment. The String assignment at the end still touches the heap,
 //   but it's ONE allocation instead of up to 9.
  
+// --- NEUE DYNAMISCHE VERSION ---
+void cleanUpProSignsOptimized(String &input) {
+    int len = input.length();
+    if (len == 0) return;
 
+    String result;
+    result.reserve(len * 5);
+    const char* src = input.c_str();
+
+    for (int i = 0; i < len; ++i) {
+        switch (src[i]) {
+            case 'S': result.concat("<as>");  break;
+            case 'A': result.concat("<ka>");  break;
+            case 'N': result.concat("<kn>");  break;
+            case 'K': result.concat("<sk>");  break;
+            case 'E': result.concat("<ve>");  break;
+            case 'B': result.concat("<bk>");  break;
+            case 'H': result.concat("ch");    break;
+            case 'R': result.concat("<err>"); break;
+            case 'U': result.concat('*');     break;
+            default:  result.concat(src[i]);  break;
+        }
+    }
+    input = result;
+}
 
 //// measure battery voltage in mV
 
@@ -2891,13 +3009,13 @@ void checkShutDown(boolean enforce) {       /// if enforce == true, we shut donw
 
   if (MorsePreferences::pliste[posTimeOut].value || enforce) {
       timeOut = 300000UL * MorsePreferences::pliste[posTimeOut].value;
-    if (m32protocol && !enforce)                          /// no time-out while m32protocol is active unless forced
+    if (protocolActive() && !enforce)                          /// no time-out while m32protocol is active unless forced
       return;
     if ((millis() - MorseOutput::TOTcounter) > timeOut || enforce == true )  {
           MorseOutput::clearDisplay();
           MorseOutput::printOnScroll(1, INVERSE_BOLD, 0,  "Power OFF...");
           MorseOutput::printOnScroll(2, REGULAR, 0, "FN to turn ON");
-          if (m32protocol)
+          if (protocolActive())
                   MorseJSON::jsonCreate("message", "Power off", "");
           MorseOutput::refreshDisplay();
           delay (1500);
@@ -2909,8 +3027,11 @@ void checkShutDown(boolean enforce) {       /// if enforce == true, we shut donw
 void shutMeDown() {
   MorsePreferences::writeVolume();   // volume may have been changed without returning to the menu
   MorseOutput::sleep();     /// shut down Heltec display
-  if (m32protocol)
+  if (protocolActive())
     MorseJSON::jsonError("M32 SLEEP SHUTDOWN BY USER");
+#ifdef CONFIG_BLE_SERIAL
+  MorseBleSerial::txFlush(300);       // best-effort: let the shutdown notice reach a live BLE client
+#endif
 
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0); //1 = High, 0 = Low
 #ifdef LORA_RADIOLIB
@@ -3414,7 +3535,7 @@ void keyOut(boolean on,  boolean fromHere, int f, int volume) {
         }
         digitalWrite(keyerPin, LOW);      // stop keying Tx
 #ifdef CONFIG_BLUETOOTH_KEYBOARD
-        if ((MorsePreferences::pliste[posBluetoothOut].value & 0x1) == 0x1)
+        if ((MorseBluetooth::keyboardMode() & 0x1) == 0x1)
           MorseBluetooth::bluetoothTypeLCTRL(false);
 #endif
   }   // end key off
@@ -3486,7 +3607,7 @@ void memoryKeyer() {
     MorseOutput::clearStatusLine();
     if (maxMemCount == 0) {                   // no memories have been set
       MorseOutput::printOnStatusLine(true, 0, "No memories stored");
-      if (m32protocol)
+      if (protocolActive())
           MorseJSON::jsonCreate("message", "No memories stored!", "");
       delay(500);
       updateTopLine();
@@ -3503,14 +3624,14 @@ void dispMem(int8_t memNo) {
   MorseOutput::clearStatusLine();
   if (memNo == 0)   {    // exit
     MorseOutput::printOnStatusLine(true, 0, "EXIT");
-    if (m32protocol) MorseJSON::jsonCreate("message", "Click to Exit", "");
+    if (protocolActive()) MorseJSON::jsonCreate("message", "Click to Exit", "");
   }
   else {
     String Number = (memNo < 3 ? "R" : "_") + String(memNo) + ": " ;
     String Value = Number + String(MorsePreferences::cwMem[memNo-1]);
     Value = Value.substring(0,18);
     MorseOutput::printOnStatusLine(false, 0, Value);
-    if (m32protocol) MorseJSON::jsonCreate("message", "Memory " + Value, "");
+    if (protocolActive()) MorseJSON::jsonCreate("message", "Memory " + Value, "");
     }
 }
 
@@ -3789,6 +3910,7 @@ void serialEvent() {
                 inputString.toLowerCase();
                 if (inputString  == "put device/protocol/on")  {  /// client wants to switch m32 Protocol on
                   m32protocol = true;
+                  M32TargetScope usbOnly(M32Target::UsbOnly);     // handshake reply: a live BLE session must not see it
                   MorseJSON::jsonDevice(brd,vsn);
                 }
               }
@@ -3796,7 +3918,93 @@ void serialEvent() {
           inputString = "";
           stringComplete = false;
       }
+#ifdef CONFIG_BLE_SERIAL
+      bleSerialEvent();               // BLE is serviced everywhere USB is: serialEvent() is polled in
+                                      // loop(), the menu wait-loop and every busy-wait site
+#endif
 }
+
+#ifdef CONFIG_BLE_SERIAL
+
+/////////////////////
+// the BLE twin of serialEvent() above: assemble bytes from the BLE RX ring
+// into lines and dispatch them through the same protocol engine. Deliberate
+// mirror of serialEvent()'s line assembly — keep the two in sync.
+// EXACTLY ONE completed line per poll (like serialEvent's break at \n), so
+// loop() consumes dispatch flags (goToMenu/executeMenu/executeNow) between
+// lines and batched BLE writes behave identically to batched USB input.
+/////////////////////
+
+void bleSerialEvent() {
+  uint8_t b;
+  MorseBleSerial::pump();                                   // session resets, advertising restart, flow-gated TX drain
+  if (MorseBleSerial::takeLineReset()) {                    // new central: our partial line belongs to the old session
+    bleInputString = "";
+    bleDiscardLine = false;
+  }
+  while (MorseBleSerial::readByte(b)) {                     // returns false immediately after stop()
+    if (bleDiscardLine) {                                   // tail of a runaway line: swallow up to \n, execute nothing
+      if (b == '\n')
+        bleDiscardLine = false;
+      continue;
+    }
+    bleInputString += (char) b;
+    if (bleInputString.length() > 400) {                    // no legitimate command is this long; USB accepts such
+      bleInputString = "";                                  // lines, so at least say why BLE did not
+      bleDiscardLine = true;
+      M32TargetScope bleOnly(M32Target::BleOnly);           // this client's problem — never inject it into USB
+      MorseJSON::jsonError("BLE LINE TOO LONG");
+      continue;
+    }
+    if (b != '\n')
+      continue;
+    bleInputString.trim();
+    if (!bleProtocol) {                                     // pre-handshake: only the protocol/on probe is recognized
+      if (bleInputString.equalsIgnoreCase("put device/protocol/on")) {
+        bleProtocol = true;
+        M32TargetScope bleOnly(M32Target::BleOnly);         // handshake reply: a live USB session must not see it
+        MorseJSON::jsonDevice(brd, vsn);
+      }
+    }
+    else if (bleInputString.equalsIgnoreCase("put device/protocol/off")) {
+      // intercepted per transport (whole-line compare, fully case-insensitive):
+      // ends only the BLE session — the USB handler in m32Put stays USB-only
+      M32TargetScope bleOnly(M32Target::BleOnly);
+      MorseJSON::jsonCreate("end m32protocol", "Goodbye!", "");
+      bleProtocol = false;
+    }
+    else if (bleInputString.equalsIgnoreCase("put device/protocol/on")) {
+      // already-on re-ack, mirroring m32Put's behavior for USB — intercepted
+      // here so BOTH protocol on and off stay per-transport (m32Put's device/
+      // protocol branch is USB-only and answers with a UsbOnly target)
+      M32TargetScope bleOnly(M32Target::BleOnly);
+      MorseJSON::jsonDevice(brd, vsn);
+    }
+    else if (bleInputString.length() >= 20 &&
+             bleInputString.substring(0, 20).equalsIgnoreCase("put device/protocol/")) {
+      // bogus protocol value: answer HERE, per transport — falling through to
+      // serialDecode would route m32Put's UsbOnly-targeted error to USB
+      M32TargetScope bleOnly(M32Target::BleOnly);
+      MorseJSON::jsonError("INVALID Value " + bleInputString.substring(20));
+    }
+    else
+      serialDecode(bleInputString);                         // one shared protocol engine, no duplication
+    bleInputString = "";
+    return;                                                 // one completed line per poll — see header comment
+  }
+  // Only reached with the RX ring drained. RX overflow: the ring poisons
+  // itself on a dropped write (no new bytes admitted until drained), so
+  // everything consumed above was intact pre-drop data — dispatched normally.
+  // At ring-empty the assembling line's tail is known lost: discard the dead
+  // prefix and report once.
+  if (MorseBleSerial::takeRxOverflow()) {
+    bleInputString = "";
+    bleDiscardLine = false;
+    M32TargetScope bleOnly(M32Target::BleOnly);             // this client's problem — never inject it into USB
+    MorseJSON::jsonError("BLE RX OVERFLOW");
+  }
+}
+#endif // CONFIG_BLE_SERIAL
 
 
 /////////////////////
@@ -3812,7 +4020,7 @@ firstArg.reserve(20);
 secondArg.reserve(20);
 thirdArg.reserve(20);
 
-  if (!m32protocol)
+  if (!protocolActive())                    // any handshaken transport may dispatch; delivery is per-transport in m32out
     return;
   input.trim();
   int blank = input.indexOf(" ");
@@ -3935,7 +4143,7 @@ void m32Get(String type, String token, String value) {                    /// GE
               for (int i = 0; i < MorsePreferences::filePartCount; i++) {
                   arr.add(MorsePreferences::fileParts[i].name);
               }
-              serializeJson(doc, Serial);
+              MorseJSON::jsonSend(doc);
           }
       }    }
     else if (type == "wifi") {
@@ -3982,11 +4190,15 @@ void m32Put(String type, String token, String value) {                    /// PU
     ////////////////// DEVICE ///////////////////////
     else if (type == "device") {
       if (token == "protocol") {
-        if (value == "off") {
+        // reachable from USB only: bleSerialEvent intercepts both protocol
+        // on and off before serialDecode. Session control is single-transport:
+        // a handshaken BLE client must not see this session end (or re-ack).
+        M32TargetScope usbOnly(M32Target::UsbOnly);
+        if (value.equalsIgnoreCase("off")) {            // value arg is not lowercased by serialDecode
             MorseJSON::jsonCreate("end m32protocol", "Goodbye!", "");
             m32protocol = false;
         }
-        else if (value == "on")
+        else if (value.equalsIgnoreCase("on"))
             MorseJSON::jsonDevice(brd,vsn);             // even when we are on, we send the device info, so that the client is getting some positive feedback
         else
             MorseJSON::jsonError("INVALID Value " + value);
@@ -4004,6 +4216,9 @@ void m32Put(String type, String token, String value) {                    /// PU
         resetPref.end();
         MorseJSON::jsonOK();
         Serial.flush();          // ensure the OK reaches the host before we reboot
+#ifdef CONFIG_BLE_SERIAL
+        MorseBleSerial::txFlush(500);  // same courtesy for a BLE client; the link drops with the reboot
+#endif
         delay(100);
         ESP.restart();
       }
@@ -4091,6 +4306,18 @@ void m32Put(String type, String token, String value) {                    /// PU
                     MorsePreferences::newMenuPtr = MorsePreferences::menuPtr;
                 }
                 MorseJSON::jsonOK();
+#ifdef CONFIG_BLE_SERIAL
+                // this path recalls WITHOUT writePreferences, so the change-switch
+                // there (stop BLE Serial when the selector moved away from BLT
+                // Serial Prot.) must run here too — otherwise BLE Serial keeps
+                // running while the selector reads 0-4, and the next keyer entry
+                // starts the HID keyboard on top of the live NUS stack. The OK
+                // above still reaches a BLE client: stopWithNotice flushes first.
+                // (Selector recalled TO value 5: the top-menu backstop starts us.)
+                if (token == "recall" &&
+                    MorsePreferences::pliste[posBluetoothOut].value != BLT_USE_SERIAL_PROT)
+                    MorseBleSerial::stopWithNotice("BLE serial off", 300);
+#endif
                 return;                                                               // we are done here, and return
               }                                                                       // otherwise:
             }                                                                         /// not found
